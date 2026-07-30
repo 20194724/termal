@@ -359,10 +359,10 @@
   function renderSalesQuickFilters() {
     const active = state.sales.filter((sale) => sale.active !== false);
     const filters = [
-      { key: "all", label: "Todos", sales: active },
-      { key: "receivable", label: "Por cobrar", sales: active.filter((sale) => U.number(sale.porCobrar) > 0), amount: true },
-      { key: "production", label: "Por producir", sales: active.filter((sale) => sale.estadoPedido === "Producción") },
-      { key: "ready", label: "Por despachar", sales: active.filter((sale) => sale.estadoPedido === "Por despachar") },
+      { key: "all", label: "Todos", shortLabel: "Todos", sales: active },
+      { key: "receivable", label: "Por cobrar", shortLabel: "Cobrar", sales: active.filter((sale) => U.number(sale.porCobrar) > 0), amount: true },
+      { key: "production", label: "Por producir", shortLabel: "Producir", sales: active.filter((sale) => sale.estadoPedido === "Producción") },
+      { key: "ready", label: "Por despachar", shortLabel: "Despachar", sales: active.filter((sale) => sale.estadoPedido === "Por despachar") },
       { key: "route", label: "En ruta", sales: active.filter((sale) => sale.estadoPedido === "Despachado") },
       { key: "delivered", label: "Entregados", sales: active.filter((sale) => sale.estadoPedido === "Entregado") },
       { key: "problems", label: "Problemas", sales: active.filter((sale) => U.saleProblems(sale).length > 0) }
@@ -374,8 +374,12 @@
             ? filter.sales.reduce((sum, sale) => sum + U.number(sale.porCobrar), 0)
             : 0;
           return `<button class="sales-filter-chip ${state.salesQuickFilter === filter.key ? "active" : ""}"
-            data-quick-filter="${filter.key}" aria-pressed="${state.salesQuickFilter === filter.key}">
-            <span>${filter.label}</span>
+            data-quick-filter="${filter.key}" aria-pressed="${state.salesQuickFilter === filter.key}"
+            aria-label="${filter.label}: ${filter.sales.length}${filter.amount ? `, ${U.currency(pending)}` : ""}">
+            <span class="sales-filter-label">
+              <span class="sales-filter-label-full">${filter.label}</span>
+              <span class="sales-filter-label-short" aria-hidden="true">${filter.shortLabel || filter.label}</span>
+            </span>
             <strong>${filter.sales.length}</strong>
             ${filter.amount ? `<small>${U.currency(pending)}</small>` : ""}
           </button>`;

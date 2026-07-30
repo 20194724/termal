@@ -251,6 +251,7 @@ a { color: var(--primary); }
   box-shadow: 0 1px 3px rgba(110,16,61,.08);
 }
 .sales-filter-chip.active strong { color: white; background: var(--primary); }
+.sales-filter-label-short { display: none; }
 .sales-mobile-view { display: none; }
 .toolbar {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
@@ -619,12 +620,17 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
   .sales-mobile-sort select:focus { box-shadow: none; }
   .sales-command-actions { grid-column: 1 / -1; margin: 0; }
   .sales-quick-filters {
-    flex-wrap: nowrap; width: calc(100% + 28px); margin-left: -14px; padding: 0 14px 6px;
-    overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none;
-    scroll-snap-type: x proximity;
+    display: grid; grid-template-columns: repeat(12,minmax(0,1fr)); gap: 7px;
+    width: 100%; margin-left: 0; padding: 0; overflow: visible;
   }
-  .sales-quick-filters::-webkit-scrollbar { display: none; }
-  .sales-filter-chip { flex: 0 0 auto; scroll-snap-align: start; }
+  .sales-filter-chip {
+    grid-column: span 3; display: grid; grid-template-columns: minmax(0,1fr) auto;
+    align-content: center; align-items: center; gap: 3px 5px; min-width: 0;
+    border-radius: 11px; text-align: left; white-space: normal;
+  }
+  .sales-filter-chip:nth-child(n+5) { grid-column: span 4; }
+  .sales-filter-label { min-width: 0; overflow: hidden; }
+  .sales-filter-chip small { grid-column: 1 / -1; }
   .sales-desktop-view { display: none; }
   .sales-mobile-view {
     display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px;
@@ -723,6 +729,21 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
   .sales-mobile-sort { min-width: 0; }
   .sales-command-actions { width: 100%; margin-left: 0; }
   .sales-command-actions .btn { flex: 1; }
+  .sales-filter-chip {
+    gap: 3px 4px; min-height: 48px; padding: 6px 7px;
+  }
+  .sales-filter-label-full { display: none; }
+  .sales-filter-label-short {
+    display: block; overflow: hidden; font-size: 9px; line-height: 1.1;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sales-filter-chip strong {
+    min-width: 18px; width: 18px; height: 18px; padding: 0; font-size: 9px;
+  }
+  .sales-filter-chip small {
+    overflow: hidden; font-size: 8px; line-height: 1;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
   .sales-mobile-view { grid-template-columns: 1fr; }
   .problem-toggle-row { align-items: flex-start; flex-direction: column; }
   .problem-row, .problem-row.has-custom { grid-template-columns: 1fr; }
