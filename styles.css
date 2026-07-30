@@ -227,11 +227,9 @@ a { color: var(--primary); }
 .sales-commandbar {
   display: flex; align-items: center; gap: 9px; margin-bottom: 12px;
 }
-.sales-command-title { min-width: 185px; margin-right: auto; }
-.sales-command-title h2 { margin: 0; font-size: 17px; }
-.sales-command-title span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+.sales-commandbar > .search-box { margin-right: auto; }
 .sales-command-actions { display: flex; gap: 7px; }
-.sales-mobile-sort { display: none; }
+.mobile-filter-tools { display: none; }
 .sales-quick-filters {
   display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px;
 }
@@ -568,8 +566,6 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
   .dashboard-secondary { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .filter-panel { grid-template-columns: repeat(3,minmax(150px,1fr)); }
   .sales-commandbar { flex-wrap: wrap; }
-  .sales-command-title { width: 100%; }
-  .sales-command-title + .search-box { margin-right: auto; }
   .problem-row, .problem-row.has-custom { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .problem-remove { justify-self: end; }
 }
@@ -603,34 +599,57 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
   .filter-panel { grid-template-columns: repeat(2,minmax(130px,1fr)); }
   .sales-command-actions { margin-left: auto; }
   .sales-commandbar {
-    display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 8px;
+    display: grid; grid-template-columns: minmax(0,1fr) 42px; align-items: center; gap: 8px;
   }
-  .sales-command-title { grid-column: 1 / -1; width: 100%; min-width: 0; margin: 0; }
-  .sales-command-title + .search-box {
-    grid-column: 1 / -1; width: 100%; min-width: 0; margin: 0;
+  .sales-commandbar > .search-box {
+    grid-column: 1; width: 100%; min-width: 0; margin: 0;
   }
-  .sales-mobile-sort {
-    display: grid; grid-template-columns: auto minmax(128px,1fr); align-items: center; gap: 7px;
-    min-height: 39px; padding-left: 10px; border: 1px solid #d0d5dd; border-radius: 9px;
-    color: var(--muted); background: white; font-size: 10px; font-weight: 700;
+  .sales-commandbar .filter-toggle {
+    grid-column: 2; width: 42px; min-width: 42px; min-height: 42px; padding: 0;
+    font-size: 17px;
   }
-  .sales-mobile-sort select {
-    min-height: 37px; padding: 6px 8px; border: 0; background: transparent; font-size: 11px;
+  .filter-toggle-label { display: none; }
+  .filter-toggle-icon { line-height: 1; }
+  .sales-command-actions { display: none; }
+  .mobile-filter-tools {
+    display: grid; grid-column: 1 / -1; grid-template-columns: minmax(0,1fr) auto;
+    align-items: end; gap: 8px;
   }
-  .sales-mobile-sort select:focus { box-shadow: none; }
-  .sales-command-actions { grid-column: 1 / -1; margin: 0; }
+  .mobile-filter-actions { display: flex; gap: 7px; }
   .sales-quick-filters {
-    display: grid; grid-template-columns: repeat(12,minmax(0,1fr)); gap: 7px;
+    display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px;
     width: 100%; margin-left: 0; padding: 0; overflow: visible;
   }
   .sales-filter-chip {
-    grid-column: span 3; display: grid; grid-template-columns: minmax(0,1fr) auto;
-    align-content: center; align-items: center; gap: 3px 5px; min-width: 0;
-    border-radius: 11px; text-align: left; white-space: normal;
+    display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+    gap: 3px; min-width: 0; min-height: 64px; padding: 8px;
+    border-radius: 10px; text-align: left; white-space: normal;
   }
-  .sales-filter-chip:nth-child(n+5) { grid-column: span 4; }
+  .sales-filter-secondary { display: none; }
   .sales-filter-label { min-width: 0; overflow: hidden; }
-  .sales-filter-chip small { grid-column: 1 / -1; }
+  .sales-filter-label-full { display: none; }
+  .sales-filter-label-short {
+    display: flex; align-items: center; gap: 4px; overflow: hidden; max-width: 100%;
+    font-size: 8px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sales-filter-label-short::before {
+    content: ""; flex: 0 0 auto; width: 5px; height: 5px; border-radius: 50%;
+    background: #98a2b3;
+  }
+  .sales-filter-all .sales-filter-label-short::before { background: var(--primary); }
+  .sales-filter-receivable .sales-filter-label-short::before { background: #f79009; }
+  .sales-filter-production .sales-filter-label-short::before { background: #7f56d9; }
+  .sales-filter-ready .sales-filter-label-short::before { background: #f79009; }
+  .sales-filter-chip strong {
+    display: block; min-width: 0; width: auto; height: auto; padding: 0;
+    color: var(--text); background: transparent; font-size: 17px; line-height: 1;
+  }
+  .sales-filter-chip small {
+    overflow: hidden; max-width: 100%; color: var(--muted); font-size: 8px;
+    line-height: 1; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sales-filter-chip.active { border-color: #e790b8; background: #fff4f9; }
+  .sales-filter-chip.active strong { color: var(--primary); background: transparent; }
   .sales-desktop-view { display: none; }
   .sales-mobile-view {
     display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px;
@@ -724,26 +743,9 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
   .search-box { min-width: 0; width: 100%; }
   .filter-panel { grid-template-columns: 1fr; }
   .sales-commandbar { align-items: stretch; }
-  .sales-command-title, .sales-commandbar .search-box { width: 100%; }
-  .sales-commandbar .filter-toggle { width: auto; min-width: 105px; }
-  .sales-mobile-sort { min-width: 0; }
-  .sales-command-actions { width: 100%; margin-left: 0; }
-  .sales-command-actions .btn { flex: 1; }
-  .sales-filter-chip {
-    gap: 3px 4px; min-height: 48px; padding: 6px 7px;
-  }
-  .sales-filter-label-full { display: none; }
-  .sales-filter-label-short {
-    display: block; overflow: hidden; font-size: 9px; line-height: 1.1;
-    text-overflow: ellipsis; white-space: nowrap;
-  }
-  .sales-filter-chip strong {
-    min-width: 18px; width: 18px; height: 18px; padding: 0; font-size: 9px;
-  }
-  .sales-filter-chip small {
-    overflow: hidden; font-size: 8px; line-height: 1;
-    text-overflow: ellipsis; white-space: nowrap;
-  }
+  .sales-commandbar .search-box { width: 100%; }
+  .mobile-filter-tools { grid-template-columns: 1fr; }
+  .mobile-filter-actions .btn { flex: 1; }
   .sales-mobile-view { grid-template-columns: 1fr; }
   .problem-toggle-row { align-items: flex-start; flex-direction: column; }
   .problem-row, .problem-row.has-custom { grid-template-columns: 1fr; }

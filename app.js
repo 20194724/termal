@@ -304,19 +304,10 @@
 
     els.mainContent.innerHTML = `
       <div class="sales-commandbar">
-        <div class="sales-command-title"><h2>Pedidos</h2><span>${filtered.length} registros</span></div>
         <label class="search-box"><input type="search" data-filter="search" value="${U.escapeHtml(state.filters.search)}" placeholder="Buscar cliente, pedido o código…"></label>
-        <label class="sales-mobile-sort">
-          <span>Ordenar</span>
-          <select data-sales-sort aria-label="Ordenar pedidos">
-            <option value="fecha:desc" ${state.sort.key === "fecha" && state.sort.direction === "desc" ? "selected" : ""}>Más recientes</option>
-            <option value="fecha:asc" ${state.sort.key === "fecha" && state.sort.direction === "asc" ? "selected" : ""}>Más antiguos</option>
-            <option value="codigo:desc" ${state.sort.key === "codigo" && state.sort.direction === "desc" ? "selected" : ""}>Pedido mayor</option>
-            <option value="codigo:asc" ${state.sort.key === "codigo" && state.sort.direction === "asc" ? "selected" : ""}>Pedido menor</option>
-          </select>
-        </label>
         <button class="btn btn-secondary filter-toggle ${hasActiveFilters() ? "has-filters" : ""}" data-action="toggle-filters">
-          ⊞ Filtros ${activeFilterCount() ? `(${activeFilterCount()})` : ""}
+          <span class="filter-toggle-icon">⊞</span>
+          <span class="filter-toggle-label">Filtros ${activeFilterCount() ? `(${activeFilterCount()})` : ""}</span>
         </button>
         <div class="sales-command-actions">
           <button class="btn btn-secondary" data-action="export-csv">⇩ Exportar CSV</button>
@@ -359,13 +350,13 @@
   function renderSalesQuickFilters() {
     const active = state.sales.filter((sale) => sale.active !== false);
     const filters = [
-      { key: "all", label: "Todos", shortLabel: "Todos", sales: active },
-      { key: "receivable", label: "Por cobrar", shortLabel: "Cobrar", sales: active.filter((sale) => U.number(sale.porCobrar) > 0), amount: true },
-      { key: "production", label: "Por producir", shortLabel: "Producir", sales: active.filter((sale) => sale.estadoPedido === "Producción") },
-      { key: "ready", label: "Por despachar", shortLabel: "Despachar", sales: active.filter((sale) => sale.estadoPedido === "Por despachar") },
-      { key: "route", label: "En ruta", sales: active.filter((sale) => sale.estadoPedido === "Despachado") },
-      { key: "delivered", label: "Entregados", sales: active.filter((sale) => sale.estadoPedido === "Entregado") },
-      { key: "problems", label: "Problemas", sales: active.filter((sale) => U.saleProblems(sale).length > 0) }
+      { key: "all", label: "Todos", shortLabel: "Todos", sales: active, priority: true },
+      { key: "receivable", label: "Por cobrar", shortLabel: "Por cobrar", sales: active.filter((sale) => U.number(sale.porCobrar) > 0), amount: true, priority: true },
+      { key: "production", label: "Por producir", shortLabel: "Producción", sales: active.filter((sale) => sale.estadoPedido === "Producción"), priority: true },
+      { key: "ready", label: "Por despachar", shortLabel: "Despachar", sales: active.filter((sale) => sale.estadoPedido === "Por despachar"), priority: true },
+      { key: "route", label: "En ruta", sales: active.filter((sale) => sale.estadoPedido === "Despachado"), priority: false },
+      { key: "delivered", label: "Entregados", sales: active.filter((sale) => sale.estadoPedido === "Entregado"), priority: false },
+      { key: "problems", label: "Problemas", sales: active.filter((sale) => U.saleProblems(sale).length > 0), priority: false }
     ];
     return `
       <div class="sales-quick-filters" role="group" aria-label="Filtros rápidos de pedidos">
@@ -373,7 +364,7 @@
           const pending = filter.amount
             ? filter.sales.reduce((sum, sale) => sum + U.number(sale.porCobrar), 0)
             : 0;
-          return `<button class="sales-filter-chip ${state.salesQuickFilter === filter.key ? "active" : ""}"
+          return `<button class="sales-filter-chip sales-filter-${filter.key} ${filter.priority ? "sales-filter-priority" : "sales-filter-secondary"} ${state.salesQuickFilter === filter.key ? "active" : ""}"
             data-quick-filter="${filter.key}" aria-pressed="${state.salesQuickFilter === filter.key}"
             aria-label="${filter.label}: ${filter.sales.length}${filter.amount ? `, ${U.currency(pending)}` : ""}">
             <span class="sales-filter-label">
@@ -423,6 +414,20 @@
     const f = state.filters;
     return `
       <div class="filter-panel ${state.filtersOpen ? "open" : ""}">
+        <div class="mobile-filter-tools">
+          <label class="field"><span>Ordenar pedidos</span>
+            <select data-sales-sort>
+              <option value="fecha:desc" ${state.sort.key === "fecha" && state.sort.direction === "desc" ? "selected" : ""}>Más recientes</option>
+              <option value="fecha:asc" ${state.sort.key === "fecha" && state.sort.direction === "asc" ? "selected" : ""}>Más antiguos</option>
+              <option value="codigo:desc" ${state.sort.key === "codigo" && state.sort.direction === "desc" ? "selected" : ""}>Pedido mayor</option>
+              <option value="codigo:asc" ${state.sort.key === "codigo" && state.sort.direction === "asc" ? "selected" : ""}>Pedido menor</option>
+            </select>
+          </label>
+          <div class="mobile-filter-actions">
+            <button class="btn btn-secondary btn-sm" data-action="export-csv">⇩ Exportar CSV</button>
+            ${!API.isConfigured() ? `<button class="btn btn-secondary btn-sm" data-action="reset-demo">Restablecer demo</button>` : ""}
+          </div>
+        </div>
         ${fieldSelect("Estado", "estado", state.lists.estados, f.estado, true, "data-filter")}
         ${fieldSelect("Producto", "tipoProducto", state.lists.tiposProductos, f.tipoProducto, true, "data-filter")}
         ${fieldSelect("Canal", "canal", state.lists.canales, f.canal, true, "data-filter")}
