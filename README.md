@@ -2,7 +2,7 @@
 
 Aplicación web sencilla para registrar ventas una sola vez y obtener automáticamente el SKU, los cobros, el costo, la utilidad y el estado operativo.
 
-La navegación diaria tiene cuatro secciones: **Dashboard**, **Pedidos**, **Operación** y **Problemas**. En Operación están juntas Producción, Por despachar, Despachados y Entregados; las incidencias tienen su propia tabla.
+La navegación diaria tiene tres secciones: **Dashboard**, **Pedidos** y **Problemas**. Producción, Por despachar, Despachados y Entregados se gestionan mediante filtros y acciones dentro de Pedidos.
 
 No necesitas instalar programas ni contratar un servidor. La aplicación usa:
 
@@ -28,7 +28,7 @@ Haz primero una copia del Excel. La preparación inicial reorganiza la hoja `Ven
 1. Abre la carpeta del proyecto.
 2. Haz doble clic en `index.html`.
 3. Se abrirá la aplicación con pedidos de ejemplo.
-4. Prueba **Nueva venta**, **Editar**, **Agregar pago**, **Agregar envío** y las flechas de **Operación**.
+4. Prueba **Nueva venta**, **Editar**, **Agregar pago**, **Agregar envío** y las flechas de estado en **Pedidos**.
 5. Estos datos son solo de demostración y permanecen en ese navegador.
 
 ## Parte 2 — Crear el repositorio en GitHub
@@ -225,12 +225,12 @@ Cada pago posterior conserva su monto, fecha y responsable, por lo que varios pa
 
 ### Agregar o corregir un envío posterior
 
-1. Abre **Pedidos**, pulsa **⋮** y elige **Agregar envío**. También puedes hacerlo desde **Operación → Por despachar**.
+1. Abre **Pedidos**, pulsa **⋮** y elige **Agregar envío**.
 2. Selecciona la agencia, escribe el costo y selecciona quién pagó el envío.
 3. Si hubo recojo, marca **¿Hubo costo de recojo?** y escribe el monto.
 4. Guarda. El costo total, la utilidad y las liquidaciones se recalculan automáticamente.
 
-Si el envío ya estaba registrado, ambas vistas muestran **Editar envío** y modifican el mismo registro; nunca se suma dos veces.
+Si el envío ya estaba registrado, el menú muestra **Editar envío** y reemplaza el registro anterior; nunca se suma dos veces.
 
 ### Revisar problemas
 
@@ -238,18 +238,18 @@ En **Pedidos**, pulsa **⋮ → Señalar problema**. La fila afectada se resalta
 
 ### Eliminar o restaurar un pedido
 
-En **Pedidos**, pulsa **⋮ → Eliminar pedido**. El pedido se mueve a la papelera y deja de contar inmediatamente en el Dashboard, Operación y liquidaciones.
+En **Pedidos**, pulsa **⋮ → Eliminar pedido**. El pedido se mueve a la papelera y deja de contar inmediatamente en el Dashboard y las liquidaciones.
 
 La eliminación es recuperable: abre **Filtros**, marca **Ver papelera** y pulsa **Restaurar** en la fila correspondiente. El pedido nunca se borra físicamente de Google Sheets.
 
 ### Confirmar una salida
 
-1. Abre **Operación → Por despachar**.
-2. Si falta la logística, pulsa **Agregar envío** en la fila.
-3. Marca uno o varios pedidos.
-4. Haz clic en **Confirmar salida**, revisa la fecha y confirma.
+1. Abre **Pedidos** y usa el filtro **Por despachar**.
+2. Si falta la logística, abre **⋮ → Agregar envío**.
+3. Para una salida individual, pulsa la flecha de la tarjeta o fila.
+4. Para una salida conjunta, abre **Filtros → Despachar varios**, selecciona los pedidos, revisa la fecha y confirma.
 
-Todas las pestañas de Operación usan tablas. La flecha de cada fila avanza el pedido: Producción → Por despachar → Despachado → Entregado. Al despachar, la flecha abre los datos mínimos de la salida.
+La flecha de cada tarjeta o fila avanza el pedido: Producción → Por despachar → Despachado → Entregado. Al despachar, la flecha abre los datos mínimos de la salida.
 
 ### Consultar el Dashboard
 

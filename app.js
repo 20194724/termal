@@ -25,8 +25,6 @@
     sort: { key: "fecha", direction: "desc" },
     page: 1,
     pageSize: 15,
-    dispatchTab: "production",
-    selectedDispatch: new Set(),
     editingId: "",
     paymentSaleId: "",
     shippingSaleId: "",
@@ -152,7 +150,6 @@
     const renderers = {
       dashboard: renderDashboard,
       ventas: renderSales,
-      operacion: renderOperations,
       problemas: renderProblems
     };
     (renderers[state.route] || renderDashboard)();
@@ -164,7 +161,7 @@
     document.querySelectorAll("[data-route]").forEach((button) => {
       button.classList.toggle("active", button.dataset.route === route);
     });
-    const titles = { dashboard: "Dashboard", ventas: "Pedidos", operacion: "Operación", problemas: "Problemas" };
+    const titles = { dashboard: "Dashboard", ventas: "Pedidos", problemas: "Problemas" };
     els.pageTitle.textContent = titles[route] || "ERP MINI TERMAL";
     render();
     els.mainContent.focus({ preventScroll: true });
@@ -297,6 +294,7 @@
   function renderSales() {
     const filtered = filterSales();
     const sorted = sortSales(filtered);
+    const readyCount = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido === "Por despachar").length;
     const pages = Math.max(1, Math.ceil(sorted.length / state.pageSize));
     state.page = Math.min(state.page, pages);
     const start = (state.page - 1) * state.pageSize;
@@ -310,12 +308,13 @@
           <span class="filter-toggle-label">Filtros ${activeFilterCount() ? `(${activeFilterCount()})` : ""}</span>
         </button>
         <div class="sales-command-actions">
+          ${readyCount ? `<button class="btn btn-secondary" data-action="open-dispatch">⇢ Despachar varios</button>` : ""}
           <button class="btn btn-secondary" data-action="export-csv">⇩ Exportar CSV</button>
           ${!API.isConfigured() ? `<button class="btn btn-secondary" data-action="reset-demo">Restablecer demo</button>` : ""}
         </div>
       </div>
       ${renderSalesQuickFilters()}
-      ${renderFilterPanel()}
+      ${renderFilterPanel(readyCount)}
       <section class="card table-card sales-results-card">
         ${pageSales.length ? `
           <div class="table-scroll sales-desktop-view">
@@ -415,7 +414,7 @@
       </article>`;
   }
 
-  function renderFilterPanel() {
+  function renderFilterPanel(readyCount = 0) {
     const f = state.filters;
     return `
       <div class="filter-panel ${state.filtersOpen ? "open" : ""}">
@@ -435,6 +434,7 @@
             ${!API.isConfigured() ? `<button class="btn btn-secondary btn-sm" data-action="reset-demo">Restablecer demo</button>` : ""}
           </div>
         </div>
+        ${readyCount ? `<button class="btn btn-secondary btn-sm mobile-batch-dispatch" data-action="open-dispatch">⇢ Despachar varios (${readyCount})</button>` : ""}
         ${fieldSelect("Estado", "estado", state.lists.estados, f.estado, true, "data-filter")}
         ${fieldSelect("Producto", "tipoProducto", state.lists.tiposProductos, f.tipoProducto, true, "data-filter")}
         ${fieldSelect("Canal", "canal", state.lists.canales, f.canal, true, "data-filter")}
@@ -473,71 +473,10 @@
         <td><div class="row-actions">
           ${archived
             ? `<button class="row-action" data-sale-action="restore" data-id="${sale.id}" title="Restaurar">↶</button>`
-            : `<button class="order-menu-button" data-sale-action="menu" data-id="${sale.id}" aria-label="Acciones de ${U.escapeHtml(sale.codigo)}" title="Pago, envío o problema">⋮</button>`}
+            : `${flowButton(sale)}
+              <button class="order-menu-button" data-sale-action="menu" data-id="${sale.id}" aria-label="Acciones de ${U.escapeHtml(sale.codigo)}" title="Acciones del pedido">⋮</button>`}
         </div></td>
       </tr>`;
-  }
-
-  function renderOperations() {
-    const active = state.sales.filter((sale) => sale.active !== false);
-    const groups = {
-      production: active.filter((sale) => sale.estadoPedido === "Producción")
-        .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))),
-      ready: active.filter((sale) => sale.estadoPedido === "Por despachar"),
-      route: active.filter((sale) => sale.estadoPedido === "Despachado"),
-      delivered: active.filter((sale) => sale.estadoPedido === "Entregado").sort((a, b) => String(b.fechaEntrega || b.fecha).localeCompare(String(a.fechaEntrega || a.fecha)))
-    };
-    const sales = groups[state.dispatchTab] || groups.production;
-    const tabLabels = { production: "Producción", ready: "Por despachar", route: "Despachados", delivered: "Entregados" };
-    els.mainContent.innerHTML = `
-      <div class="page-head">
-        <div><h2>Operación</h2><p>Todo el recorrido del pedido en una sola pantalla.</p></div>
-        <div class="page-actions">
-          ${state.dispatchTab === "ready" ? `<button class="btn btn-primary" data-action="open-dispatch" ${state.selectedDispatch.size ? "" : "disabled"}>⇢ Confirmar salida</button>` : ""}
-        </div>
-      </div>
-      <div class="tabs">
-        ${Object.keys(tabLabels).map((key) => `<button class="tab-button ${state.dispatchTab === key ? "active" : ""}" data-dispatch-tab="${key}">${tabLabels[key]} <span class="tab-count">${groups[key].length}</span></button>`).join("")}
-      </div>
-      ${state.dispatchTab === "ready" && state.selectedDispatch.size ? `
-        <div class="selection-bar"><span>${state.selectedDispatch.size} pedido${state.selectedDispatch.size === 1 ? "" : "s"} seleccionado${state.selectedDispatch.size === 1 ? "" : "s"}</span><button class="btn btn-primary btn-sm" data-action="open-dispatch">Confirmar salida</button></div>` : ""}
-      <section class="card table-card">
-        ${sales.length ? dispatchTable(sales, state.dispatchTab) :
-          emptyState("⇢", `No hay pedidos en “${tabLabels[state.dispatchTab]}”`, "Esta vista se actualiza automáticamente cuando cambia el estado de un pedido.")}
-      </section>
-    `;
-  }
-
-  function dispatchTable(sales, tab) {
-    const checkbox = tab === "ready";
-    return `<div class="table-scroll"><table><thead><tr>
-      ${checkbox ? `<th><input type="checkbox" data-select-all-dispatch aria-label="Seleccionar todos"></th>` : ""}
-      <th>Pedido</th><th>Cliente</th><th>Producto</th><th>Estado</th><th>Agencia</th>
-      ${tab === "route" ? "<th>Despacho</th><th>Seguimiento</th><th>Días en ruta</th><th>Cobro</th><th>Liquidación</th>" : ""}
-      ${tab === "delivered" ? "<th>Entregado</th><th>Venta</th>" : ""}
-      <th>Acciones</th></tr></thead><tbody>
-      ${sales.map((sale) => dispatchRow(sale, tab)).join("")}
-    </tbody></table></div>`;
-  }
-
-  function dispatchRow(sale, tab) {
-    const inRouteDays = U.daysSince(sale.fechaDespacho || sale.fecha);
-    return `<tr class="${tab === "route" && inRouteDays >= 3 ? "route-late" : ""}">
-      ${tab === "ready" ? `<td><input type="checkbox" data-dispatch-select="${sale.id}" ${state.selectedDispatch.has(sale.id) ? "checked" : ""}></td>` : ""}
-      <td><button class="link-button cell-primary" data-sale-action="view" data-id="${sale.id}">${U.escapeHtml(sale.codigo)}</button></td>
-      <td><span class="cell-primary">${U.escapeHtml(sale.cliente)}</span><span class="cell-secondary">${U.escapeHtml(sale.telefono || "Sin teléfono")}</span></td>
-      <td><span class="cell-primary">${U.escapeHtml(sale.producto)}</span><span class="cell-secondary">${U.escapeHtml(U.productDescription(sale))}</span></td>
-      <td>${statusChip(sale.estadoPedido)}</td><td>${U.escapeHtml(sale.agencia || "—")}</td>
-      ${tab === "route" ? `<td>${U.formatDate(sale.fechaDespacho)}</td><td>${U.escapeHtml(sale.codigoSeguimiento || "—")}</td><td><span class="${inRouteDays >= 3 ? "money-danger" : ""}">${inRouteDays}</span></td><td>${paymentChip(sale.estadoCobro)}</td><td>${liquidationChip(sale.estadoLiquidacion)}</td>` : ""}
-      ${tab === "delivered" ? `<td>${U.formatDate(sale.fechaEntrega)}</td><td>${U.currency(sale.ventaTotal)}</td>` : ""}
-      <td><div class="row-actions">
-        <button class="row-action" data-sale-action="view" data-id="${sale.id}" title="Abrir">○</button>
-        <button class="row-action" data-sale-action="edit" data-id="${sale.id}" title="Editar">✎</button>
-        ${tab === "route" ? `<button class="row-action" data-sale-action="problem" data-id="${sale.id}" title="Registrar problema">!</button>` : ""}
-        ${tab === "ready" ? `<button class="btn btn-secondary btn-sm shipping-button" data-sale-action="shipping" data-id="${sale.id}">${hasShipping(sale) ? "Editar envío" : "＋ Agregar envío"}</button>` : ""}
-        ${flowButton(sale)}
-      </div></td>
-    </tr>`;
   }
 
   function renderProblems() {
@@ -1550,17 +1489,46 @@
     }
   }
 
-  function openDispatchDialog() {
-    const selected = state.sales.filter((sale) => state.selectedDispatch.has(sale.id));
-    if (!selected.length) return;
+  function openDispatchDialog(saleIds = []) {
+    const requestedIds = Array.isArray(saleIds) ? saleIds : [];
+    const ready = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido === "Por despachar");
+    const selected = requestedIds.length
+      ? ready.filter((sale) => requestedIds.includes(sale.id))
+      : [];
+    if (requestedIds.length && !selected.length) {
+      toast("warning", "El pedido ya no está por despachar", "Sincroniza la información e inténtalo otra vez.");
+      return;
+    }
+    if (!requestedIds.length && !ready.length) {
+      toast("success", "No hay pedidos por despachar", "Todos los pedidos están al día.");
+      return;
+    }
     const withoutShipping = selected.filter((sale) => !hasShipping(sale));
     els.dispatchBody.innerHTML = `
-      <p class="metric-meta">${selected.length} pedido${selected.length === 1 ? "" : "s"}: ${selected.map((sale) => U.escapeHtml(sale.codigo)).join(", ")}</p>
-      <input type="hidden" name="saleIds" value="${selected.map((sale) => sale.id).join(",")}">
-      <div class="form-grid payment-form-grid" style="margin-top:15px">
+      ${requestedIds.length ? `
+        <p class="metric-meta">${selected.length} pedido${selected.length === 1 ? "" : "s"}: ${selected.map((sale) => U.escapeHtml(sale.codigo)).join(", ")}</p>
+        <input type="hidden" name="saleIds" value="${selected.map((sale) => sale.id).join(",")}">` : `
+        <p class="metric-meta">Selecciona los pedidos que saldrán juntos.</p>
+        <input type="hidden" name="saleIds" value="">
+        <div class="batch-dispatch-list" role="group" aria-label="Pedidos por despachar">
+          ${ready.map((sale) => `
+            <label class="batch-dispatch-item">
+              <input type="checkbox" data-dispatch-choice value="${sale.id}">
+              <span>
+                <strong>#${U.escapeHtml(sale.codigo)} · ${U.escapeHtml(sale.cliente)}</strong>
+                <small>${U.escapeHtml(sale.producto || sale.sku || "Sin código")} · ${U.escapeHtml(sale.agencia || "Sin agencia")}</small>
+              </span>
+              <em class="${hasShipping(sale) ? "ready" : "pending"}">${hasShipping(sale) ? "Envío listo" : "Falta envío"}</em>
+            </label>`).join("")}
+        </div>`}
+      <div class="form-grid payment-form-grid dispatch-date-field">
         ${fieldInput("Fecha de salida", "fecha", "date", U.today(), true)}
       </div>
-      ${withoutShipping.length ? `<div class="form-warning">${withoutShipping.length} pedido${withoutShipping.length === 1 ? "" : "s"} todavía no ${withoutShipping.length === 1 ? "tiene" : "tienen"} envío registrado. Puedes añadirlo desde la tabla Por despachar antes o después de marcar la salida.</div>` : `<div class="form-success">Todos los pedidos seleccionados ya tienen sus datos de envío.</div>`}
+      ${requestedIds.length
+        ? withoutShipping.length
+          ? `<div class="form-warning">${withoutShipping.length} pedido${withoutShipping.length === 1 ? "" : "s"} todavía no ${withoutShipping.length === 1 ? "tiene" : "tienen"} envío registrado. Puedes añadirlo desde Pedidos antes o después de marcar la salida.</div>`
+          : `<div class="form-success">El pedido ya tiene sus datos de envío.</div>`
+        : ""}
       <p class="form-error" id="dispatchError"></p>`;
     els.dispatchDialog.showModal();
   }
@@ -1568,13 +1536,20 @@
   async function submitDispatch(event) {
     event.preventDefault();
     const dispatch = formToObject(els.dispatchForm);
-    dispatch.saleIds = String(dispatch.saleIds).split(",").filter(Boolean);
+    const checkedIds = [...els.dispatchForm.querySelectorAll("[data-dispatch-choice]:checked")]
+      .map((input) => input.value);
+    dispatch.saleIds = checkedIds.length
+      ? checkedIds
+      : String(dispatch.saleIds).split(",").filter(Boolean);
+    if (!dispatch.saleIds.length) {
+      document.getElementById("dispatchError").textContent = "Selecciona por lo menos un pedido.";
+      return;
+    }
     const button = els.dispatchForm.querySelector('[type="submit"]');
     setButtonLoading(button, true, "Creando salida…");
     try {
       const result = await API.request("createDispatch", { dispatch });
       (result.sales || []).forEach(upsertSale);
-      state.selectedDispatch.clear();
       closeDialog("dispatchDialog");
       toast("success", "Salida creada", `${dispatch.saleIds.length} pedido${dispatch.saleIds.length === 1 ? "" : "s"} marcado${dispatch.saleIds.length === 1 ? "" : "s"} como despachado.`);
       render();
@@ -1614,7 +1589,6 @@
     try {
       const saved = await API.request("updateSale", { sale: updated });
       upsertSale(saved);
-      state.selectedDispatch.delete(id);
       toast("success", "Estado actualizado", `${saved.codigo} ahora está “${status}”.`);
       render();
     } catch (error) {
@@ -1654,9 +1628,8 @@
         navigate("problemas");
         return;
       }
-      state.dispatchTab = target;
-      state.selectedDispatch.clear();
-      navigate("operacion");
+      state.salesQuickFilter = target;
+      navigate("ventas");
       return;
     }
     const period = event.target.closest("[data-period]");
@@ -1692,14 +1665,9 @@
     }
     const page = event.target.closest("[data-page]");
     if (page && !page.disabled) { state.page = Number(page.dataset.page); renderSales(); return; }
-    const tab = event.target.closest("[data-dispatch-tab]");
-    if (tab) { state.dispatchTab = tab.dataset.dispatchTab; state.selectedDispatch.clear(); renderOperations(); return; }
     const singleDispatch = event.target.closest("[data-single-dispatch]");
     if (singleDispatch) {
-      state.selectedDispatch.clear();
-      state.selectedDispatch.add(singleDispatch.dataset.singleDispatch);
-      openDispatchDialog();
-      state.selectedDispatch.clear();
+      openDispatchDialog([singleDispatch.dataset.singleDispatch]);
       return;
     }
     const quick = event.target.closest("[data-quick-status]");
@@ -1736,17 +1704,6 @@
     }
     const range = event.target.dataset.dashboardRange;
     if (range) { state.customRange[range] = event.target.value; renderDashboard(); return; }
-    if (event.target.dataset.dispatchSelect) {
-      if (event.target.checked) state.selectedDispatch.add(event.target.dataset.dispatchSelect);
-      else state.selectedDispatch.delete(event.target.dataset.dispatchSelect);
-      renderOperations(); return;
-    }
-    if (event.target.hasAttribute("data-select-all-dispatch")) {
-      const ready = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido === "Por despachar");
-      if (event.target.checked) ready.forEach((sale) => state.selectedDispatch.add(sale.id));
-      else state.selectedDispatch.clear();
-      renderOperations();
-    }
   }
 
   async function handleFormAction(action, button) {
@@ -1799,7 +1756,7 @@
   async function archiveSale(sale) {
     const confirmed = await confirmDialog(
       "Eliminar pedido",
-      `${sale.codigo} · ${sale.cliente} se moverá a la papelera. Dejará de aparecer en Pedidos, Operación, Dashboard y liquidaciones, pero podrás restaurarlo desde Filtros → Ver papelera.`,
+      `${sale.codigo} · ${sale.cliente} se moverá a la papelera. Dejará de aparecer en Pedidos, Dashboard y liquidaciones, pero podrás restaurarlo desde Filtros → Ver papelera.`,
       "Eliminar pedido",
       true
     );
@@ -2098,14 +2055,6 @@
     if (normalized === "entregado") type = "done";
     if (normalized === "cancelado") type = "cancel";
     return `<span class="chip chip-${type}">${U.escapeHtml(status || "Sin estado")}</span>`;
-  }
-
-  function paymentChip(status) {
-    return `<span class="chip chip-${status === "Cobrado" ? "paid" : "pending"}">${U.escapeHtml(status || "Pendiente")}</span>`;
-  }
-
-  function liquidationChip(status) {
-    return `<span class="chip chip-${status === "Liquidado" ? "paid" : "pending"}">${U.escapeHtml(status || "Pendiente")}</span>`;
   }
 
   function problemChip(problem) {

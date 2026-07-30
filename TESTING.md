@@ -9,7 +9,7 @@ Marca cada casilla cuando el resultado sea correcto.
 - [ ] **Crear:** Nueva venta → completa los campos esenciales → Guardar. Aparece en Pedidos y Dashboard sin recargar.
 - [ ] **Editar:** cambia cliente, producto o monto. El cambio aparece en todas las vistas.
 - [ ] **Menú de acciones:** la fila muestra un botón ⋮ con Agregar/Editar envío, Agregar pago, Señalar/Editar problema y Eliminar pedido.
-- [ ] **Eliminar:** elimina un pedido y confirma que desaparece de Pedidos, Operación, Dashboard y liquidaciones.
+- [ ] **Eliminar:** elimina un pedido y confirma que desaparece de Pedidos, Dashboard y liquidaciones.
 - [ ] **Restaurar:** abre Filtros → Ver papelera, restaura el pedido y confirma que vuelve a todas las vistas.
 - [ ] **Agregar pago:** venta S/ 149.90, cobrado S/ 19.90, pendiente S/ 130.00; agrega S/ 50.00, selecciona quién lo recibió y confirma S/ 69.90 cobrado y S/ 80.00 pendiente.
 - [ ] **Responsables distintos:** agrega dos pagos posteriores recibidos por cuentas distintas y confirma en el detalle que ambos conservan su monto, fecha y responsable.
@@ -69,15 +69,14 @@ Usa una venta de S/ 119.90.
 
 ## Producción y despachos
 
-- [ ] **Operación:** Producción, Por despachar, Despachados y Entregados están en una sola sección.
-- [ ] **Tablas:** todas las pestañas, incluida Producción, muestran sus pedidos como tabla.
-- [ ] **Primera flecha:** en Producción pulsa A despacho →. El pedido pasa a Por despachar.
-- [ ] **Segunda flecha:** en Por despachar pulsa Despachar →. Se abre la salida y, al confirmar, pasa a Despachados.
-- [ ] **Tercera flecha:** en Despachados pulsa Entregado →. El pedido pasa a Entregados con fecha de hoy.
-- [ ] **Agregar envío aquí:** Por despachar permite agregar o editar el mismo envío de la sección Pedidos.
-- [ ] **Confirmar salida:** cambia todos los seleccionados a Despachado y registra la fecha sin modificar sus costos de envío.
-- [ ] **En ruta:** muestra teléfono, seguimiento, cobro y liquidación.
-- [ ] **Ruta demorada:** un pedido con 3 o más días se resalta.
+- [ ] **Filtros operativos:** Pedidos permite ver Por producir, Por despachar, En ruta y Entregados sin abrir otra sección.
+- [ ] **Primera flecha:** en un pedido en Producción pulsa A despacho →. Confirma y verifica que pase a Por despachar.
+- [ ] **Segunda flecha:** en Por despachar pulsa Despachar →. Se abre la salida y, al confirmar, pasa a Despachado.
+- [ ] **Tercera flecha:** en Despachado pulsa Entregado →. Confirma y verifica que registre la fecha de hoy.
+- [ ] **Agregar envío aquí:** el menú ⋮ permite agregar o editar el envío antes de despachar.
+- [ ] **Despacho múltiple:** Filtros → Despachar varios permite seleccionar pedidos y registrar una sola fecha de salida.
+- [ ] **Confirmar salida:** cambia todos los seleccionados a Despachado sin modificar sus costos de envío.
+- [ ] **Regresar etapa:** el menú ⋮ permite volver a la etapa anterior después de confirmar.
 - [ ] **Entregado:** marca un pedido en ruta como Entregado; registra la fecha de hoy.
 - [ ] **Problemas:** una fila afectada se resalta en Pedidos; su tipo, nota y costo aparecen en la sección Problemas.
 - [ ] **Problemas múltiples:** dos problemas del mismo pedido aparecen como dos filas en la sección Problemas.
@@ -107,10 +106,10 @@ Usa una venta de S/ 119.90.
 ## Celular y accesibilidad
 
 - [ ] Abre la aplicación en un teléfono o usa el modo móvil del navegador.
-- [ ] El menú inferior permite abrir Dashboard, Pedidos, Operación y Problemas.
+- [ ] El menú inferior permite abrir Dashboard, Pedidos y Problemas.
 - [ ] El botón central ＋ abre Nueva venta.
 - [ ] El formulario puede desplazarse y el botón Guardar permanece visible.
-- [ ] Las tablas se desplazan horizontalmente sin romper la página.
+- [ ] Pedidos usa tarjetas en móvil y no provoca desplazamiento horizontal en la página.
 - [ ] Los campos se pueden recorrer con Tab en computadora.
 - [ ] Ctrl + Enter guarda el formulario.
 - [ ] No hay botones visibles que no respondan.
