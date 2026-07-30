@@ -253,9 +253,9 @@ La flecha de cada tarjeta o fila avanza el pedido: Producción → Por despachar
 
 ### Consultar el Dashboard
 
-El bloque **Prioridades** abre directamente Por producir, Por despachar, En ruta, Problemas o Por cobrar. Debajo aparecen las métricas del periodo, las próximas acciones y la gráfica de líneas de **Ventas** y **Utilidad**.
+El Dashboard está dedicado al análisis y evita repetir la lista operativa de Pedidos. Muestra el resumen económico del periodo, el canal principal, el producto más rentable, el diseño más vendido, el porcentaje cobrado y comparaciones ordenadas por canal, producto y diseño.
 
-Puedes consultar **Hoy**, **Esta semana**, todo el **Histórico**, un mes específico desde la lista o un rango personalizado. Las métricas y la gráfica se actualizan juntas.
+Puedes consultar **Hoy**, **Esta semana**, todo el **Histórico**, un mes específico o un rango personalizado desde un único selector compacto. Todas las métricas y comparaciones se actualizan juntas.
 
 ### Registrar una devolución a la mancomunada
 

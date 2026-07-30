@@ -3,7 +3,6 @@
 
   const U = globalThis.TermalUtils;
   const API = globalThis.TermalAPI;
-  const Charts = globalThis.TermalCharts;
 
   const state = {
     route: "dashboard",
@@ -103,7 +102,6 @@
         openSaleForm();
       }
     });
-    window.addEventListener("resize", debounce(drawDashboardCharts, 150));
     els.confirmDialog.addEventListener("cancel", (event) => {
       event.preventDefault();
       closeDialog("confirmDialog");
@@ -180,63 +178,44 @@
     const sales = active.filter((sale) => U.inRange(sale.fecha, range));
     const totals = summarize(sales);
     const allOutstanding = obligations(active);
-    const countProblems = active.filter((sale) => U.saleProblems(sale).length > 0).length;
-    const receivable = active.filter((sale) => U.number(sale.porCobrar) > 0);
-    const receivableAmount = U.money(receivable.reduce((sum, sale) => sum + U.number(sale.porCobrar), 0));
-    const operationCounts = {
-      production: active.filter((sale) => sale.estadoPedido === "Producción").length,
-      ready: active.filter((sale) => sale.estadoPedido === "Por despachar").length,
-      route: active.filter((sale) => sale.estadoPedido === "Despachado").length,
-      problems: countProblems
-    };
-    const nextProduction = nextOperationalSale(active, "Producción");
-    const nextReady = nextOperationalSale(active, "Por despachar");
-    const nextDelivery = active
-      .filter((sale) =>
-        sale.estadoPedido !== "Entregado" &&
-        sale.estadoPedido !== "Cancelado" &&
-        U.dateInput(sale.fechaAcordadaEntrega) >= U.today()
-      )
-      .sort(compareOperationalDates)[0] || null;
+    const channels = groupDashboardSales(sales, "canal").sort((a, b) => b.sales - a.sales);
+    const products = groupDashboardSales(sales, "tipoProducto").sort((a, b) => b.profit - a.profit);
+    const designs = groupDashboardSales(sales, "disenoProducto").sort((a, b) =>
+      b.units - a.units || b.sales - a.sales
+    );
+    const bestChannel = channels[0];
+    const bestProduct = products[0];
+    const bestDesign = designs[0];
 
     els.mainContent.innerHTML = `
-      <div class="period-bar">
-        <div class="dashboard-period-controls">
-          <div class="segmented" aria-label="Periodo del dashboard">
-            ${periodButton("today", "Hoy")}
-            ${periodButton("week", "Esta semana")}
-            ${periodButton("history", "Histórico")}
-          </div>
-          <label class="month-picker ${state.period === "month" ? "active" : ""}">
-            <span>Mes específico</span>
+      <div class="dashboard-filterbar">
+        <label class="dashboard-filter-control">
+          <span>Periodo</span>
+          <select data-dashboard-period aria-label="Periodo del dashboard">
+            <option value="today" ${state.period === "today" ? "selected" : ""}>Hoy</option>
+            <option value="week" ${state.period === "week" ? "selected" : ""}>Esta semana</option>
+            <option value="month" ${state.period === "month" ? "selected" : ""}>Mes específico</option>
+            <option value="history" ${state.period === "history" ? "selected" : ""}>Histórico</option>
+            <option value="custom" ${state.period === "custom" ? "selected" : ""}>Rango personalizado</option>
+          </select>
+        </label>
+        ${state.period === "month" ? `
+          <label class="dashboard-filter-control dashboard-month-control">
+            <span>Mes</span>
             <select data-dashboard-month aria-label="Seleccionar un mes">
               ${dashboardMonthOptions().map(({ value, label }) => `<option value="${value}" ${value === state.selectedMonth ? "selected" : ""}>${U.escapeHtml(label)}</option>`).join("")}
             </select>
-          </label>
-          <button class="date-range-button ${state.period === "custom" ? "active" : ""}" data-period="custom">Rango personalizado</button>
-        </div>
+          </label>` : ""}
         ${state.period === "custom" ? `
-          <div class="custom-range">
-            <input type="date" aria-label="Fecha inicial" data-dashboard-range="start" value="${U.escapeHtml(state.customRange.start)}">
-            <span>—</span>
-            <input type="date" aria-label="Fecha final" data-dashboard-range="end" value="${U.escapeHtml(state.customRange.end)}">
-          </div>` : `<span class="dashboard-period-caption">${dashboardPeriodLabel(range)}</span>`}
-      </div>
-
-      <div class="dashboard-section-head">
-        <div><p class="eyebrow">AHORA</p><h2>Prioridades</h2></div>
-        <span>Accesos directos a Pedidos</span>
-      </div>
-      <div class="priority-grid" aria-label="Prioridades operativas">
-        ${priorityItem("production", "Por producir", operationCounts.production, "Taller")}
-        ${priorityItem("ready", "Por despachar", operationCounts.ready, "Preparar salida")}
-        ${priorityItem("route", "En ruta", operationCounts.route, "Seguimiento")}
-        ${priorityItem("problems", "Con problemas", operationCounts.problems, "Revisar")}
-        ${priorityItem("receivable", "Por cobrar", receivable.length, receivableAmount ? U.currency(receivableAmount) : "Todo cobrado", "receivable")}
+          <div class="dashboard-custom-range">
+            <label><span>Desde</span><input type="date" aria-label="Fecha inicial" data-dashboard-range="start" value="${U.escapeHtml(state.customRange.start)}"></label>
+            <label><span>Hasta</span><input type="date" aria-label="Fecha final" data-dashboard-range="end" value="${U.escapeHtml(state.customRange.end)}"></label>
+          </div>` : ""}
+        <span class="dashboard-period-caption">${dashboardPeriodLabel(range)}</span>
       </div>
 
       <div class="dashboard-section-head metrics-heading">
-        <div><p class="eyebrow">PERIODO</p><h2>Métricas</h2></div>
+        <div><p class="eyebrow">RESUMEN</p><h2>Resultados del periodo</h2></div>
         <span>${dashboardPeriodLabel(range)}</span>
       </div>
       <div class="metric-grid dashboard-metrics">
@@ -248,66 +227,48 @@
         ${metric("Ticket promedio", U.currency(totals.ticket), "◈", "Por pedido", "")}
       </div>
 
-      <section class="card next-actions-card">
-        <div class="card-title">
-          <div><p class="eyebrow">SIGUIENTE</p><h3>Próximas acciones</h3></div>
-          <span class="metric-meta">Toca un pedido para abrirlo</span>
-        </div>
-        <div class="next-actions-list">
-          ${nextActionItem("Producir primero", nextProduction)}
-          ${nextActionItem("Próximo despacho", nextReady)}
-          ${nextActionItem("Próxima entrega", nextDelivery, true)}
-        </div>
-      </section>
+      <div class="dashboard-section-head">
+        <div><p class="eyebrow">ANÁLISIS</p><h2>Lecturas del periodo</h2></div>
+        <span>Datos que no se ven a simple vista en Pedidos</span>
+      </div>
+      <div class="insight-grid">
+        ${insightCard("Canal principal", bestChannel?.label || "Sin datos", bestChannel ? `${U.currency(bestChannel.sales)} · ${bestChannel.orders} pedidos` : "No hay ventas")}
+        ${insightCard("Producto más rentable", bestProduct?.label || "Sin datos", bestProduct ? `${U.currency(bestProduct.profit)} de utilidad` : "No hay ventas", bestProduct?.profit < 0 ? "danger" : "success")}
+        ${insightCard("Diseño más vendido", bestDesign?.label || "Sin datos", bestDesign ? `${bestDesign.units} ${bestDesign.units === 1 ? "unidad" : "unidades"} · ${U.currency(bestDesign.sales)}` : "No hay ventas")}
+        ${insightCard("Conversión a efectivo", `${percent(totals.collected, totals.sales)}%`, `${U.currency(totals.collected)} de ${U.currency(totals.sales)}`, totals.pending ? "warning" : "success")}
+      </div>
 
-      <div class="dashboard-main">
-        <section class="card chart-card">
-          <div class="card-title"><div><p class="eyebrow">TENDENCIA</p><h3>Ventas y utilidad</h3></div><span class="metric-meta">${sales.length} pedidos</span></div>
-          <canvas id="salesChart" aria-label="Gráfico de líneas de ventas y utilidad"></canvas>
+      <div class="analytics-grid">
+        <section class="card analytics-card">
+          <div class="analytics-card-head"><div><p class="eyebrow">CANALES</p><h3>Ventas por canal</h3></div><span>${channels.length} canales</span></div>
+          ${analyticsList(channels, { valueKey: "sales", meta: "orders" })}
         </section>
-        <section class="card liquidation-card">
-          <div class="section-head">
-            <div><h3>Liquidaciones pendientes</h3><p>Haz clic para ver los pedidos</p></div>
-            <div class="page-actions">
-              <button class="btn btn-sm btn-secondary" data-action="movement-history">Historial</button>
-              <button class="btn btn-sm btn-secondary" data-action="new-return">Registrar devolución</button>
-            </div>
-          </div>
-          <div class="liquidation-list">
-            ${liquidationItem("GONZALO_RETURN", "G", "Gonzalo debe devolver", allOutstanding.gonzalo, active)}
-            ${liquidationItem("ALBERTO_RETURN", "A", "Alberto debe devolver", allOutstanding.alberto, active)}
-            ${liquidationItem("DINSIDES_DEPOSIT", "D", "DINSIDES debe depositar", allOutstanding.dinsides, active)}
-            ${liquidationItem("TERMAL_PAY_DINSIDES", "T", "Termal debe pagar", allOutstanding.termalDinsides, active)}
-          </div>
+        <section class="card analytics-card">
+          <div class="analytics-card-head"><div><p class="eyebrow">PRODUCTOS</p><h3>Utilidad por producto</h3></div><span>Rentabilidad real</span></div>
+          ${analyticsList(products, { valueKey: "profit", meta: "margin" })}
+        </section>
+        <section class="card analytics-card">
+          <div class="analytics-card-head"><div><p class="eyebrow">DISEÑOS</p><h3>Diseños más vendidos</h3></div><span>Por unidades</span></div>
+          ${analyticsList(designs, { valueKey: "units", mode: "units", meta: "sales" })}
         </section>
       </div>
 
+      <section class="card liquidation-card dashboard-liquidations">
+        <div class="section-head">
+          <div><h3>Liquidaciones pendientes</h3><p>Haz clic para ver los pedidos</p></div>
+          <div class="page-actions">
+            <button class="btn btn-sm btn-secondary" data-action="movement-history">Historial</button>
+            <button class="btn btn-sm btn-secondary" data-action="new-return">Registrar devolución</button>
+          </div>
+        </div>
+        <div class="liquidation-list">
+          ${liquidationItem("GONZALO_RETURN", "G", "Gonzalo debe devolver", allOutstanding.gonzalo, active)}
+          ${liquidationItem("ALBERTO_RETURN", "A", "Alberto debe devolver", allOutstanding.alberto, active)}
+          ${liquidationItem("DINSIDES_DEPOSIT", "D", "DINSIDES debe depositar", allOutstanding.dinsides, active)}
+          ${liquidationItem("TERMAL_PAY_DINSIDES", "T", "Termal debe pagar", allOutstanding.termalDinsides, active)}
+        </div>
+      </section>
     `;
-    requestAnimationFrame(drawDashboardCharts);
-  }
-
-  function drawDashboardCharts() {
-    if (state.route !== "dashboard" || !document.getElementById("salesChart")) return;
-    const range = dashboardRange();
-    const active = state.sales.filter((sale) =>
-      sale.active !== false && sale.estadoPedido !== "Cancelado" && U.inRange(sale.fecha, range)
-    );
-    const groupByMonth = state.period === "history" || dashboardRangeDays(range) > 62;
-    const grouped = active.reduce((acc, sale) => {
-      const key = groupByMonth ? String(sale.fecha).slice(0, 7) : sale.fecha;
-      if (!acc[key]) acc[key] = { sales: 0, profit: 0 };
-      acc[key].sales = U.money(acc[key].sales + U.number(sale.ventaTotal));
-      acc[key].profit = U.money(acc[key].profit + U.number(sale.utilidad));
-      return acc;
-    }, {});
-    const dateEntries = Object.entries(grouped)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, values]) => [
-        groupByMonth ? formatShortMonth(date) : formatShortDate(date),
-        values.sales,
-        values.profit
-      ]);
-    Charts.lineCompare(document.getElementById("salesChart"), dateEntries);
   }
 
   function renderSales() {
@@ -1640,27 +1601,6 @@
       renderSales();
       return;
     }
-    const operation = event.target.closest("[data-operation]");
-    if (operation) {
-      const target = operation.dataset.operation;
-      if (target === "problems") {
-        navigate("problemas");
-        return;
-      }
-      state.salesQuickFilter = target;
-      navigate("ventas");
-      return;
-    }
-    const period = event.target.closest("[data-period]");
-    if (period) {
-      state.period = period.dataset.period;
-      if (state.period === "custom" && !state.customRange.start && !state.customRange.end) {
-        const monthRange = dashboardRangeForMonth(state.selectedMonth);
-        state.customRange = { ...monthRange };
-      }
-      renderDashboard();
-      return;
-    }
     const liquidation = event.target.closest("[data-liquidation]");
     if (liquidation) { openLiquidationDetail(liquidation.dataset.liquidation); return; }
     const saleAction = event.target.closest("[data-sale-action]");
@@ -1702,6 +1642,14 @@
   }
 
   function handleMainChange(event) {
+    if (event.target.hasAttribute("data-dashboard-period")) {
+      state.period = event.target.value;
+      if (state.period === "custom" && !state.customRange.start && !state.customRange.end) {
+        state.customRange = { ...dashboardRangeForMonth(state.selectedMonth) };
+      }
+      renderDashboard();
+      return;
+    }
     if (event.target.hasAttribute("data-dashboard-month")) {
       state.selectedMonth = event.target.value;
       state.period = "month";
@@ -2037,41 +1985,50 @@
     return `<div class="metric-card ${style}"><div class="metric-label">${label}<span class="metric-icon">${icon}</span></div><div class="metric-value">${value}</div><div class="metric-meta">${meta}</div></div>`;
   }
 
-  function priorityItem(type, label, count, meta, style = "") {
-    return `<button class="priority-item priority-${type} ${style}" data-operation="${type}">
-      <span class="priority-label">${label}</span>
-      <strong>${count}</strong>
-      <small>${meta}</small>
-    </button>`;
+  function groupDashboardSales(sales, key) {
+    const groups = new Map();
+    sales.forEach((sale) => {
+      const label = String(sale[key] || "Sin dato").trim() || "Sin dato";
+      const current = groups.get(label) || { label, orders: 0, units: 0, sales: 0, profit: 0 };
+      current.orders += 1;
+      current.units += U.number(sale.cantidad);
+      current.sales = U.money(current.sales + U.number(sale.ventaTotal));
+      current.profit = U.money(current.profit + U.number(sale.utilidad));
+      groups.set(label, current);
+    });
+    return [...groups.values()];
   }
 
-  function compareOperationalDates(a, b) {
-    const aDate = U.dateInput(a.fechaAcordadaEntrega) || "9999-12-31";
-    const bDate = U.dateInput(b.fechaAcordadaEntrega) || "9999-12-31";
-    return aDate.localeCompare(bDate) || String(a.fecha).localeCompare(String(b.fecha));
+  function insightCard(label, value, meta, style = "") {
+    return `<article class="insight-card ${style}">
+      <span>${U.escapeHtml(label)}</span>
+      <strong title="${U.escapeHtml(value)}">${U.escapeHtml(value)}</strong>
+      <small>${U.escapeHtml(meta)}</small>
+    </article>`;
   }
 
-  function nextOperationalSale(sales, status) {
-    return sales.filter((sale) => sale.estadoPedido === status).sort(compareOperationalDates)[0] || null;
-  }
-
-  function nextActionItem(label, sale, delivery = false) {
-    if (!sale) {
-      return `<div class="next-action-item empty"><span class="next-action-label">${label}</span><span><strong>Sin pedidos pendientes</strong></span><em>—</em></div>`;
+  function analyticsList(rows, options = {}) {
+    const selected = rows.slice(0, 5);
+    if (!selected.length) {
+      return `<div class="analytics-empty"><strong>Sin datos en este periodo</strong><span>Prueba con otro rango de fechas.</span></div>`;
     }
-    const status = agreedDeliveryStatus(sale);
-    const meta = delivery
-      ? status.label
-      : sale.fechaAcordadaEntrega ? U.formatDate(sale.fechaAcordadaEntrega) : "Sin fecha acordada";
-    return `<button class="next-action-item" data-sale-action="view" data-id="${sale.id}">
-      <span class="next-action-label">${label}</span>
-      <span><strong>#${U.escapeHtml(sale.codigo)} · ${U.escapeHtml(sale.cliente)}</strong><small>${U.escapeHtml(sale.producto || sale.sku || "Sin código")}</small></span>
-      <em>${U.escapeHtml(meta)}</em>
-    </button>`;
-  }
-
-  function periodButton(value, label) {
-    return `<button data-period="${value}" class="${state.period === value ? "active" : ""}">${label}</button>`;
+    const valueKey = options.valueKey || "sales";
+    const maxValue = Math.max(...selected.map((row) => Math.abs(U.number(row[valueKey]))), 1);
+    return `<div class="analytics-list">${selected.map((row) => {
+      const value = U.number(row[valueKey]);
+      const width = Math.max(value ? 4 : 0, Math.round((Math.abs(value) / maxValue) * 100));
+      const formatted = options.mode === "units" ? `${value} u.` : U.currency(value);
+      const meta = options.meta === "margin"
+        ? `Margen ${percent(row.profit, row.sales)}% · ${row.units} unidades`
+        : options.meta === "sales"
+          ? `${U.currency(row.sales)} · ${row.orders} pedido${row.orders === 1 ? "" : "s"}`
+          : `${row.orders} pedido${row.orders === 1 ? "" : "s"} · ${row.units} unidades`;
+      return `<div class="analytics-row ${value < 0 ? "danger" : ""}">
+        <div class="analytics-row-head"><span title="${U.escapeHtml(row.label)}">${U.escapeHtml(row.label)}</span><strong>${formatted}</strong></div>
+        <div class="analytics-bar" aria-hidden="true"><i style="width:${width}%"></i></div>
+        <small>${meta}</small>
+      </div>`;
+    }).join("")}</div>`;
   }
 
   function liquidationItem(type, initial, label, amount, sales) {
@@ -2254,13 +2211,6 @@
     return "Periodo seleccionado";
   }
 
-  function dashboardRangeDays(range) {
-    if (!range.start || !range.end) return Number.POSITIVE_INFINITY;
-    const start = new Date(`${range.start}T12:00:00-05:00`);
-    const end = new Date(`${range.end}T12:00:00-05:00`);
-    return Math.max(0, Math.round((end - start) / 86400000));
-  }
-
   function monthLabel(value) {
     if (!/^\d{4}-\d{2}$/.test(String(value))) return "Mes específico";
     const label = new Intl.DateTimeFormat("es-PE", {
@@ -2269,16 +2219,6 @@
     return label.charAt(0).toUpperCase() + label.slice(1);
   }
 
-  function formatShortDate(value) {
-    const [year, month, day] = String(value).split("-");
-    return year && day ? `${day}/${month}` : value;
-  }
-  function formatShortMonth(value) {
-    if (!/^\d{4}-\d{2}$/.test(String(value))) return value;
-    return new Intl.DateTimeFormat("es-PE", {
-      month: "short", year: "2-digit", timeZone: "UTC"
-    }).format(new Date(`${value}-15T12:00:00Z`)).replace(".", "");
-  }
   function formatTime(date) { return date.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }); }
   function csvCell(value) { return `"${String(value ?? "").replaceAll('"', '""')}"`; }
 
