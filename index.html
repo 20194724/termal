@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#6e103d">
+  <meta name="description" content="ERP MINI TERMAL: ventas, producción, despachos y liquidaciones en un solo lugar.">
+  <title>ERP MINI TERMAL</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <noscript>Necesitas activar JavaScript para usar ERP MINI TERMAL.</noscript>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegación principal">
+      <div class="brand">
+        <img class="brand-logo" src="logo-termal.png" alt="Logo Termal" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+        <span class="brand-mark" style="display:none">T</span>
+        <span><strong>ERP MINI</strong><small>TERMAL</small></span>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-link active" data-route="dashboard"><span>⌂</span> Dashboard</button>
+        <button class="nav-link" data-route="ventas"><span>▤</span> Pedidos</button>
+        <button class="nav-link" data-route="operacion"><span>⇢</span> Operación</button>
+        <button class="nav-link" data-route="problemas"><span>!</span> Problemas</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="dataModeBadge" class="mode-badge">Comprobando conexión…</div>
+        <button class="link-button" id="helpButton">Guía de instalación</button>
+      </div>
+    </aside>
+
+    <div class="app-content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">TERMAL · OPERACIONES</p>
+          <h1 id="pageTitle">Dashboard</h1>
+        </div>
+        <div class="topbar-actions">
+          <div class="sync-state" id="syncState" title="Estado de sincronización">
+            <span class="sync-dot"></span>
+            <span id="lastSync">Sin sincronizar</span>
+          </div>
+          <button class="btn btn-secondary icon-btn" id="syncButton" aria-label="Sincronizar ahora" title="Sincronizar ahora">↻</button>
+          <button class="btn btn-primary" id="newSaleButton"><span>＋</span> Nueva venta</button>
+          <img class="profile-avatar" src="logo-termal.png" alt="Perfil Termal" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+          <span class="profile-fallback" style="display:none">T</span>
+        </div>
+      </header>
+
+      <main id="mainContent" tabindex="-1" aria-live="polite">
+        <div class="page-loading">
+          <div class="spinner"></div>
+          <p>Preparando tu información…</p>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <button class="nav-link active" data-route="dashboard"><span>⌂</span><small>Inicio</small></button>
+    <button class="nav-link" data-route="ventas"><span>▤</span><small>Pedidos</small></button>
+    <button class="mobile-new" id="mobileNewSale" aria-label="Nueva venta">＋</button>
+    <button class="nav-link" data-route="operacion"><span>⇢</span><small>Operación</small></button>
+    <button class="nav-link" data-route="problemas"><span>!</span><small>Problemas</small></button>
+  </nav>
+
+  <dialog id="saleDialog" class="modal modal-wide">
+    <form id="saleForm" method="dialog" novalidate>
+      <div class="modal-header sticky">
+        <div>
+          <p class="eyebrow">REGISTRO RÁPIDO</p>
+          <h2 id="saleModalTitle">Nueva venta</h2>
+        </div>
+        <button type="button" class="close-button" data-close="saleDialog" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body" id="saleFormBody"></div>
+      <div class="modal-footer sticky">
+        <span class="keyboard-hint">Guardar con <kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+        <div>
+          <button type="button" class="btn btn-secondary" data-close="saleDialog">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="saveSaleButton">Guardar venta</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="paymentDialog" class="modal modal-small">
+    <form id="paymentForm" method="dialog">
+      <div class="modal-header">
+        <div><p class="eyebrow">COBRO DEL PEDIDO</p><h2>Agregar pago</h2></div>
+        <button type="button" class="close-button" data-close="paymentDialog" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body" id="paymentBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="paymentDialog">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Agregar pago</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="shippingDialog" class="modal modal-small">
+    <form id="shippingForm" method="dialog">
+      <div class="modal-header">
+        <div><p class="eyebrow">LOGÍSTICA DEL PEDIDO</p><h2 id="shippingTitle">Agregar envío</h2></div>
+        <button type="button" class="close-button" data-close="shippingDialog" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body" id="shippingBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="shippingDialog">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar envío</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="problemDialog" class="modal">
+    <form id="problemForm" method="dialog">
+      <div class="modal-header">
+        <div><p class="eyebrow">INCIDENCIA DEL PEDIDO</p><h2 id="problemTitle">Señalar problema</h2></div>
+        <button type="button" class="close-button" data-close="problemDialog" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body" id="problemBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="problemDialog">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar problemas</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="orderActionsDialog" class="modal modal-small">
+    <div class="modal-header">
+      <div><p class="eyebrow">ACCIONES DEL PEDIDO</p><h2 id="orderActionsTitle">Pedido</h2></div>
+      <button type="button" class="close-button" data-close="orderActionsDialog" aria-label="Cerrar">×</button>
+    </div>
+    <div class="modal-body" id="orderActionsBody"></div>
+  </dialog>
+
+  <dialog id="detailDialog" class="modal modal-wide">
+    <div class="modal-header sticky">
+      <div><p class="eyebrow">DETALLE DEL PEDIDO</p><h2 id="detailTitle">Pedido</h2></div>
+      <button class="close-button" data-close="detailDialog" aria-label="Cerrar">×</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer sticky" id="detailFooter"></div>
+  </dialog>
+
+  <dialog id="movementDialog" class="modal">
+    <form id="movementForm" method="dialog">
+      <div class="modal-header">
+        <div><p class="eyebrow">CONTROL DEL DINERO</p><h2 id="movementTitle">Registrar devolución</h2></div>
+        <button type="button" class="close-button" data-close="movementDialog" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body" id="movementBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="movementDialog">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Registrar movimiento</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dispatchDialog" class="modal">
+    <form id="dispatchForm" method="dialog">
+      <div class="modal-header">
+        <div><p class="eyebrow">DESPACHOS</p><h2>Confirmar salida</h2></div>
+        <button type="button" class="close-button" data-close="dispatchDialog" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body" id="dispatchBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="dispatchDialog">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Confirmar salida</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirmDialog" class="modal modal-small">
+    <div class="modal-header"><h2 id="confirmTitle">Confirmar acción</h2></div>
+    <div class="modal-body" id="confirmBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="confirmCancel">Cancelar</button>
+      <button class="btn btn-danger" id="confirmAccept">Confirmar</button>
+    </div>
+  </dialog>
+
+  <dialog id="accessDialog" class="modal modal-small">
+    <form id="accessForm" method="dialog">
+      <div class="modal-header"><div><p class="eyebrow">ACCESO PROTEGIDO</p><h2>Clave de acceso</h2></div></div>
+      <div class="modal-body">
+        <p>Ingresa la clave que configuraste en Google Apps Script. No se guardará en el repositorio.</p>
+        <label class="field"><span>Clave</span><input type="password" name="accessKey" autocomplete="current-password" required></label>
+        <p class="form-error" id="accessError"></p>
+      </div>
+      <div class="modal-footer"><button type="submit" class="btn btn-primary full-width">Entrar</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast-region" id="toastRegion" aria-live="assertive"></div>
+  <div class="offline-banner" id="offlineBanner">Sin internet. Tus cambios no se enviarán hasta recuperar la conexión.</div>
+
+  <script src="config.js"></script>
+  <script src="utils.js"></script>
+  <script src="demo-data.js"></script>
+  <script src="api.js"></script>
+  <script src="charts.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
