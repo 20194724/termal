@@ -16,6 +16,7 @@
     selectedMonth: U.today().slice(0, 7),
     customRange: { start: "", end: "" },
     filtersOpen: false,
+    salesQuickFilter: "all",
     filters: {
       search: "", start: "", end: "", estado: "", tipoProducto: "", agencia: "", canal: "", origen: "",
       modalidadPago: "", cuenta: "", estadoCobro: "", estadoLiquidacion: "", problema: "",
@@ -304,7 +305,16 @@
     els.mainContent.innerHTML = `
       <div class="sales-commandbar">
         <div class="sales-command-title"><h2>Pedidos</h2><span>${filtered.length} registros</span></div>
-        <label class="search-box"><input type="search" data-filter="search" value="${U.escapeHtml(state.filters.search)}" placeholder="Buscar pedido, cliente o producto…"></label>
+        <label class="search-box"><input type="search" data-filter="search" value="${U.escapeHtml(state.filters.search)}" placeholder="Buscar cliente, pedido o código…"></label>
+        <label class="sales-mobile-sort">
+          <span>Ordenar</span>
+          <select data-sales-sort aria-label="Ordenar pedidos">
+            <option value="fecha:desc" ${state.sort.key === "fecha" && state.sort.direction === "desc" ? "selected" : ""}>Más recientes</option>
+            <option value="fecha:asc" ${state.sort.key === "fecha" && state.sort.direction === "asc" ? "selected" : ""}>Más antiguos</option>
+            <option value="codigo:desc" ${state.sort.key === "codigo" && state.sort.direction === "desc" ? "selected" : ""}>Pedido mayor</option>
+            <option value="codigo:asc" ${state.sort.key === "codigo" && state.sort.direction === "asc" ? "selected" : ""}>Pedido menor</option>
+          </select>
+        </label>
         <button class="btn btn-secondary filter-toggle ${hasActiveFilters() ? "has-filters" : ""}" data-action="toggle-filters">
           ⊞ Filtros ${activeFilterCount() ? `(${activeFilterCount()})` : ""}
         </button>
@@ -313,10 +323,11 @@
           ${!API.isConfigured() ? `<button class="btn btn-secondary" data-action="reset-demo">Restablecer demo</button>` : ""}
         </div>
       </div>
+      ${renderSalesQuickFilters()}
       ${renderFilterPanel()}
-      <section class="card table-card">
+      <section class="card table-card sales-results-card">
         ${pageSales.length ? `
-          <div class="table-scroll">
+          <div class="table-scroll sales-desktop-view">
             <table>
               <thead><tr>
                 ${sortableTh("fecha", "Fecha")}
@@ -330,6 +341,9 @@
               <tbody>${pageSales.map(saleRow).join("")}</tbody>
             </table>
           </div>
+          <div class="sales-mobile-view">
+            ${pageSales.map(mobileSaleCard).join("")}
+          </div>
           <div class="table-footer">
             <span>Mostrando ${start + 1}–${Math.min(start + state.pageSize, sorted.length)} de ${sorted.length}</span>
             <div class="pagination">
@@ -340,6 +354,65 @@
           </div>` : emptyState("▤", "No hay pedidos con estos filtros", "Prueba quitando los filtros.")}
       </section>
     `;
+  }
+
+  function renderSalesQuickFilters() {
+    const active = state.sales.filter((sale) => sale.active !== false);
+    const filters = [
+      { key: "all", label: "Todos", sales: active },
+      { key: "receivable", label: "Por cobrar", sales: active.filter((sale) => U.number(sale.porCobrar) > 0), amount: true },
+      { key: "production", label: "Por producir", sales: active.filter((sale) => sale.estadoPedido === "Producción") },
+      { key: "ready", label: "Por despachar", sales: active.filter((sale) => sale.estadoPedido === "Por despachar") },
+      { key: "route", label: "En ruta", sales: active.filter((sale) => sale.estadoPedido === "Despachado") },
+      { key: "delivered", label: "Entregados", sales: active.filter((sale) => sale.estadoPedido === "Entregado") },
+      { key: "problems", label: "Problemas", sales: active.filter((sale) => U.saleProblems(sale).length > 0) }
+    ];
+    return `
+      <div class="sales-quick-filters" role="group" aria-label="Filtros rápidos de pedidos">
+        ${filters.map((filter) => {
+          const pending = filter.amount
+            ? filter.sales.reduce((sum, sale) => sum + U.number(sale.porCobrar), 0)
+            : 0;
+          return `<button class="sales-filter-chip ${state.salesQuickFilter === filter.key ? "active" : ""}"
+            data-quick-filter="${filter.key}" aria-pressed="${state.salesQuickFilter === filter.key}">
+            <span>${filter.label}</span>
+            <strong>${filter.sales.length}</strong>
+            ${filter.amount ? `<small>${U.currency(pending)}</small>` : ""}
+          </button>`;
+        }).join("")}
+      </div>`;
+  }
+
+  function mobileSaleCard(sale) {
+    const archived = sale.active === false;
+    const problems = U.saleProblems(sale);
+    const shipping = hasShipping(sale);
+    const deliveryLabel = sale.agencia || sale.modalidadLogistica || "Sin envío";
+    return `
+      <article class="order-mobile-card ${archived ? "archived-card" : ""} ${problems.length ? "problem-card-highlight" : ""}">
+        <button class="order-card-main" data-sale-action="view" data-id="${sale.id}" aria-label="Abrir pedido ${U.escapeHtml(sale.codigo)}">
+          <div class="order-card-topline">
+            <span class="order-card-code">#${U.escapeHtml(sale.codigo)}</span>
+            ${statusChip(sale.estadoPedido)}
+          </div>
+          <strong class="order-card-client">${U.escapeHtml(sale.cliente)}</strong>
+          <span class="order-card-product">${U.escapeHtml(sale.producto || sale.sku || "Sin código")}</span>
+          <div class="order-card-shipping">
+            <span>${U.escapeHtml(deliveryLabel)}</span>
+            <span>${shipping ? `Envío ${U.currency(sale.costoEnvio)}` : "Envío pendiente"}</span>
+          </div>
+          <div class="order-card-finances">
+            <span><small>Venta</small><strong>${U.currency(sale.ventaTotal)}</strong></span>
+            <span><small>Por cobrar</small><strong class="${sale.porCobrar > 0 ? "money-warning" : ""}">${U.currency(sale.porCobrar)}</strong></span>
+            <span><small>Utilidad</small><strong class="${sale.utilidad < 0 ? "money-danger" : "money-positive"}">${U.currency(sale.utilidad)}</strong></span>
+          </div>
+        </button>
+        <div class="order-card-actions">
+          ${archived
+            ? `<button class="row-action" data-sale-action="restore" data-id="${sale.id}" title="Restaurar" aria-label="Restaurar pedido ${U.escapeHtml(sale.codigo)}">↶</button>`
+            : `<button class="order-menu-button" data-sale-action="menu" data-id="${sale.id}" aria-label="Acciones de ${U.escapeHtml(sale.codigo)}" title="Pago, envío o problema">⋮</button>`}
+        </div>
+      </article>`;
   }
 
   function renderFilterPanel() {
@@ -1410,6 +1483,7 @@
       if (action === "toggle-filters") { state.filtersOpen = !state.filtersOpen; renderSales(); }
       if (action === "clear-filters") {
         state.filters = { ...state.filters, search: "", start: "", end: "", estado: "", tipoProducto: "", agencia: "", canal: "", origen: "", modalidadPago: "", cuenta: "", estadoCobro: "", estadoLiquidacion: "", problema: "", showArchived: false };
+        state.salesQuickFilter = "all";
         state.page = 1; renderSales();
       }
       if (action === "export-csv") exportCsv();
@@ -1417,6 +1491,13 @@
       if (action === "new-return") openMovement("GONZALO_RETURN");
       if (action === "movement-history") openMovementHistory();
       if (action === "open-dispatch") openDispatchDialog();
+      return;
+    }
+    const quickFilter = event.target.closest("[data-quick-filter]");
+    if (quickFilter) {
+      state.salesQuickFilter = quickFilter.dataset.quickFilter;
+      state.page = 1;
+      renderSales();
       return;
     }
     const operation = event.target.closest("[data-operation]");
@@ -1496,7 +1577,15 @@
     const filter = event.target.dataset.filter;
     if (filter && filter !== "search") {
       state.filters[filter] = event.target.type === "checkbox" ? event.target.checked : event.target.value;
+      if (filter === "showArchived" && state.filters.showArchived) state.salesQuickFilter = "all";
       state.page = 1; renderSales(); return;
+    }
+    if (event.target.hasAttribute("data-sales-sort")) {
+      const [key, direction] = event.target.value.split(":");
+      state.sort = { key, direction };
+      state.page = 1;
+      renderSales();
+      return;
     }
     const range = event.target.dataset.dashboardRange;
     if (range) { state.customRange[range] = event.target.value; renderDashboard(); return; }
@@ -1673,6 +1762,12 @@
     const term = U.normalizeText(f.search);
     return state.sales.filter((sale) => {
       if (f.showArchived ? sale.active !== false : sale.active === false) return false;
+      if (state.salesQuickFilter === "receivable" && U.number(sale.porCobrar) <= 0) return false;
+      if (state.salesQuickFilter === "production" && sale.estadoPedido !== "Producción") return false;
+      if (state.salesQuickFilter === "ready" && sale.estadoPedido !== "Por despachar") return false;
+      if (state.salesQuickFilter === "route" && sale.estadoPedido !== "Despachado") return false;
+      if (state.salesQuickFilter === "delivered" && sale.estadoPedido !== "Entregado") return false;
+      if (state.salesQuickFilter === "problems" && U.saleProblems(sale).length === 0) return false;
       if (term) {
         const haystack = U.normalizeText([
           sale.codigo, sale.cliente, sale.telefono, sale.producto, sale.sku,
