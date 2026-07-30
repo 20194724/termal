@@ -406,9 +406,8 @@
         <div class="order-card-actions">
           ${archived
             ? `<button class="row-action" data-sale-action="restore" data-id="${sale.id}" title="Restaurar" aria-label="Restaurar pedido ${U.escapeHtml(sale.codigo)}">↶</button>`
-            : `${mobilePreviousFlowButton(sale)}
-              ${mobileFlowButton(sale)}
-              <button class="order-menu-button" data-sale-action="menu" data-id="${sale.id}" aria-label="Acciones de ${U.escapeHtml(sale.codigo)}" title="Pago, envío o problema">⋮</button>`}
+            : `${mobileFlowButton(sale)}
+              <button class="order-menu-button" data-sale-action="menu" data-id="${sale.id}" aria-label="Acciones de ${U.escapeHtml(sale.codigo)}" title="Acciones del pedido">⋮</button>`}
         </div>
       </article>`;
   }
@@ -611,15 +610,12 @@
     return "";
   }
 
-  function mobilePreviousFlowButton(sale) {
-    const previous = {
+  function previousStage(sale) {
+    return {
       "Por despachar": "Producción",
       "Despachado": "Por despachar",
       "Entregado": "Despachado"
-    }[sale.estadoPedido];
-    if (!previous) return "";
-    return `<button class="order-flow-button order-flow-back" data-quick-status="${previous}" data-id="${sale.id}"
-      title="Regresar a ${previous}" aria-label="Regresar ${U.escapeHtml(sale.codigo)} a ${previous}">←</button>`;
+    }[sale.estadoPedido] || "";
   }
 
   async function openSaleForm(sale = null) {
@@ -1164,6 +1160,7 @@
   function openOrderActions(sale) {
     state.actionSaleId = sale.id;
     const problems = U.saleProblems(sale);
+    const previous = previousStage(sale);
     els.orderActionsTitle.textContent = `${sale.codigo} · ${sale.cliente}`;
     els.orderActionsBody.innerHTML = `
       <div class="order-action-list">
@@ -1179,6 +1176,10 @@
           <span class="order-action-icon">!</span>
           <span><strong>${problems.length ? "Editar problema" : "Señalar problema"}</strong><small>${problems.length ? `${problems.length} incidencia${problems.length === 1 ? "" : "s"} registrada${problems.length === 1 ? "" : "s"}` : "Registrar una incidencia y su costo"}</small></span>
         </button>
+        ${previous ? `<button class="order-action-choice" data-order-action="previous">
+          <span class="order-action-icon">↶</span>
+          <span><strong>Regresar a ${previous}</strong><small>Corregir la etapa actual del pedido</small></span>
+        </button>` : ""}
         <button class="order-action-choice danger" data-order-action="delete">
           <span class="order-action-icon">×</span>
           <span><strong>Eliminar pedido</strong><small>Se moverá a la papelera y dejará de contar en los totales</small></span>
@@ -1197,6 +1198,7 @@
     if (action === "shipping") openShipping(sale);
     if (action === "payment") openPayment(sale);
     if (action === "problem") openProblemForm(sale);
+    if (action === "previous") quickStatus(sale.id, previousStage(sale));
     if (action === "delete") archiveSale(sale);
   }
 

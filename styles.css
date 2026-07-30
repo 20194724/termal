@@ -581,8 +581,12 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
   padding: 12px 14px; color: #344054; cursor: pointer; list-style: none;
 }
 .detail-disclosure > summary::-webkit-details-marker { display: none; }
-.detail-disclosure > summary::after { content: "⌄"; color: var(--muted); font-size: 15px; }
-.detail-disclosure[open] > summary::after { transform: rotate(180deg); }
+.detail-disclosure > summary::after {
+  content: "+"; display: grid; place-items: center; flex: 0 0 auto; width: 21px; height: 21px;
+  border: 1px solid #e4e7ec; border-radius: 7px; color: #667085; background: white;
+  font-size: 15px; font-weight: 500; line-height: 1;
+}
+.detail-disclosure[open] > summary::after { content: "−"; color: var(--primary); background: var(--primary-soft); }
 .detail-disclosure > summary span { margin-right: auto; font-size: 11px; font-weight: 800; }
 .detail-disclosure > summary small { color: var(--muted); font-size: 9px; }
 .detail-disclosure-body { padding: 0 14px 14px; }
@@ -732,7 +736,7 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
   }
   .order-mobile-card.archived-card { opacity: .68; }
   .order-card-main {
-    display: block; width: 100%; padding: 10px 113px 10px 11px; border: 0;
+    display: block; width: 100%; padding: 10px 82px 10px 11px; border: 0;
     color: inherit; background: transparent; text-align: left;
   }
   .order-card-main:hover { background: rgba(110,16,61,.018); }
@@ -781,12 +785,6 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
     background: #fff7fb; font-size: 16px; font-weight: 900;
   }
   .order-flow-button:hover { color: white; background: var(--primary); }
-  .order-flow-button.order-flow-back {
-    border-color: #d0d5dd; color: #667085; background: rgba(255,255,255,.92);
-  }
-  .order-flow-button.order-flow-back:hover {
-    border-color: #dca9c2; color: var(--primary); background: var(--primary-soft);
-  }
   .sales-results-card .table-footer {
     margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; background: white;
   }
