@@ -11,9 +11,10 @@ Desde la carpeta del proyecto ejecuta:
 ```powershell
 node tests\phase9-smoke.cjs
 node tests\phase9-api-smoke.cjs
+node tests\google-apps-script-v2-smoke.cjs
 ```
 
-Ambos comandos deben terminar con `"resultado": "OK"`. Estas pruebas usan únicamente datos de demostración y no se conectan a Google Sheets.
+Los tres comandos deben terminar con `"OK"`. Estas pruebas no modifican Google Sheets.
 
 La matriz responsive y el estado de la integración real están documentados en `FASE_9_RESULTADOS.md`.
 

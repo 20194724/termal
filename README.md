@@ -19,9 +19,10 @@ La validación automática de la Fase 9 se ejecuta desde la carpeta del proyecto
 ```powershell
 node tests\phase9-smoke.cjs
 node tests\phase9-api-smoke.cjs
+node tests\google-apps-script-v2-smoke.cjs
 ```
 
-Los dos comandos deben terminar con `"resultado": "OK"`. Consulta `FASE_9_RESULTADOS.md` para ver la matriz responsive, las comprobaciones realizadas y la prueba de Google Sheets que continúa pendiente.
+Los tres comandos deben terminar con `"OK"`. Consulta `FASE_9_RESULTADOS.md` para ver la matriz responsive y las comprobaciones realizadas.
 
 ## Antes de comenzar
 
