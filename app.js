@@ -316,8 +316,10 @@
 
     els.mainContent.innerHTML = `
       <div class="sales-commandbar">
-        <label class="search-box"><input type="search" data-filter="search" value="${U.escapeHtml(state.filters.search)}" placeholder="Buscar cliente, pedido o código…"></label>
-        <button class="btn btn-secondary filter-toggle ${hasActiveFilters() ? "has-filters" : ""}" data-action="toggle-filters">
+        <label class="search-box"><input type="search" data-filter="search" value="${U.escapeHtml(state.filters.search)}"
+          placeholder="Buscar cliente, pedido o código…" aria-label="Buscar pedido, cliente o código de producto"></label>
+        <button class="btn btn-secondary filter-toggle ${hasActiveFilters() ? "has-filters" : ""}" data-action="toggle-filters"
+          aria-label="Abrir filtros de pedidos" aria-expanded="${state.filtersOpen}">
           <span class="filter-toggle-icon">⊞</span>
           <span class="filter-toggle-label">Filtros ${activeFilterCount() ? `(${activeFilterCount()})` : ""}</span>
         </button>

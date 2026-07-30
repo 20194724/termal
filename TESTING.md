@@ -4,6 +4,19 @@ Realiza primero estas pruebas en modo demostración. Después repite las pruebas
 
 Marca cada casilla cuando el resultado sea correcto.
 
+## Pruebas automáticas de regresión
+
+Desde la carpeta del proyecto ejecuta:
+
+```powershell
+node tests\phase9-smoke.cjs
+node tests\phase9-api-smoke.cjs
+```
+
+Ambos comandos deben terminar con `"resultado": "OK"`. Estas pruebas usan únicamente datos de demostración y no se conectan a Google Sheets.
+
+La matriz responsive y el estado de la integración real están documentados en `FASE_9_RESULTADOS.md`.
+
 ## Pedidos y persistencia
 
 - [ ] **Crear:** Nueva venta → completa los campos esenciales → Guardar. Aparece en Pedidos y Dashboard sin recargar.

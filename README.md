@@ -12,6 +12,17 @@ No necesitas instalar programas ni contratar un servidor. La aplicación usa:
 
 La aplicación ya funciona en **modo demostración**. Mientras `config.js` conserve el texto `PEGAR_AQUI_URL_DE_GOOGLE_APPS_SCRIPT`, los datos de ejemplo se guardan únicamente en ese navegador y nunca se mezclan con tu Google Sheets.
 
+## Probar la versión de desarrollo
+
+La validación automática de la Fase 9 se ejecuta desde la carpeta del proyecto:
+
+```powershell
+node tests\phase9-smoke.cjs
+node tests\phase9-api-smoke.cjs
+```
+
+Los dos comandos deben terminar con `"resultado": "OK"`. Consulta `FASE_9_RESULTADOS.md` para ver la matriz responsive, las comprobaciones realizadas y la prueba de Google Sheets que continúa pendiente.
+
 ## Antes de comenzar
 
 Reserva entre 30 y 45 minutos. Necesitarás:
