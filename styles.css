@@ -197,7 +197,7 @@ a { color: var(--primary); }
 .metric-meta strong { color: var(--success); }
 
 .dashboard-main { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(280px,.8fr); gap: 16px; margin-bottom: 16px; }
-.operation-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin: -6px 0 22px; }
+.operation-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 10px; margin: -6px 0 22px; }
 .operation-item {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px;
   padding: 11px 13px; color: #344054; text-align: left;
@@ -284,6 +284,16 @@ tbody tr:last-child td { border-bottom: 0; }
 .problem-row-highlight:hover td { background: #fff1f1; }
 .cell-primary { color: var(--text); font-weight: 700; }
 .cell-secondary { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+.agreed-date {
+  display: inline-flex; align-items: center; min-height: 20px; padding: 3px 7px;
+  border-radius: 999px; color: #475467; background: #f2f4f7;
+  font-size: 9px; font-weight: 750; line-height: 1; white-space: nowrap;
+}
+.agreed-date-secondary { display: flex; width: max-content; margin-top: 4px; }
+.agreed-date-scheduled { color: var(--blue); background: var(--blue-soft); }
+.agreed-date-soon { color: var(--warning); background: var(--warning-soft); }
+.agreed-date-overdue { color: var(--danger); background: var(--danger-soft); }
+.agreed-date-delivered { color: var(--success); background: var(--success-soft); }
 .money-positive { color: var(--success); font-weight: 700; }
 .money-warning { color: var(--warning); font-weight: 700; }
 .money-danger { color: var(--danger); font-weight: 700; }
@@ -742,6 +752,10 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
   .order-card-main:hover { background: rgba(110,16,61,.018); }
   .order-card-topline {
     display: flex; align-items: center; gap: 7px; min-width: 0; margin-bottom: 5px;
+  }
+  .order-card-topline .agreed-date {
+    margin-left: auto; overflow: hidden; max-width: 92px; padding: 3px 6px;
+    font-size: 8px; text-overflow: ellipsis;
   }
   .order-card-code { color: var(--primary); font-size: 12px; font-weight: 800; }
   .order-card-topline .chip { min-width: 0; padding: 3px 7px; overflow: hidden; text-overflow: ellipsis; }

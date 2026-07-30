@@ -19,7 +19,7 @@
     salesQuickFilter: "all",
     filters: {
       search: "", start: "", end: "", estado: "", tipoProducto: "", agencia: "", canal: "", origen: "",
-      modalidadPago: "", cuenta: "", estadoCobro: "", estadoLiquidacion: "", problema: "",
+      modalidadPago: "", cuenta: "", estadoCobro: "", estadoLiquidacion: "", problema: "", fechaAcordadaEstado: "",
       showArchived: false
     },
     sort: { key: "fecha", direction: "desc" },
@@ -184,11 +184,13 @@
     const totals = summarize(sales);
     const allOutstanding = obligations(active);
     const countProblems = active.filter((sale) => U.saleProblems(sale).length > 0).length;
+    const countOverdue = active.filter(isOverdueSale).length;
     const operationCounts = {
       production: active.filter((sale) => sale.estadoPedido === "Producción").length,
       ready: active.filter((sale) => sale.estadoPedido === "Por despachar").length,
       route: active.filter((sale) => sale.estadoPedido === "Despachado").length,
-      problems: countProblems
+      problems: countProblems,
+      overdue: countOverdue
     };
 
     els.mainContent.innerHTML = `
@@ -242,6 +244,7 @@
         ${operationItem("ready", "Por despachar", operationCounts.ready, "Preparar salida")}
         ${operationItem("route", "En ruta", operationCounts.route, "Dar seguimiento")}
         ${operationItem("problems", "Con problemas", operationCounts.problems, "Revisar incidencias")}
+        ${operationItem("overdue", "Atrasados", operationCounts.overdue, operationCounts.overdue ? "Revisar fechas" : "Todo al día")}
       </div>
 
       <div class="dashboard-main">
@@ -356,7 +359,8 @@
       { key: "ready", label: "Por despachar", shortLabel: "Despachar", sales: active.filter((sale) => sale.estadoPedido === "Por despachar"), priority: true },
       { key: "route", label: "En ruta", sales: active.filter((sale) => sale.estadoPedido === "Despachado"), priority: false },
       { key: "delivered", label: "Entregados", sales: active.filter((sale) => sale.estadoPedido === "Entregado"), priority: false },
-      { key: "problems", label: "Problemas", sales: active.filter((sale) => U.saleProblems(sale).length > 0), priority: false }
+      { key: "problems", label: "Problemas", sales: active.filter((sale) => U.saleProblems(sale).length > 0), priority: false },
+      { key: "overdue", label: "Atrasados", sales: active.filter(isOverdueSale), priority: false }
     ];
     return `
       <div class="sales-quick-filters" role="group" aria-label="Filtros rápidos de pedidos">
@@ -383,6 +387,7 @@
     const problems = U.saleProblems(sale);
     const shipping = hasShipping(sale);
     const deliveryLabel = sale.agencia || sale.modalidadLogistica || "Sin envío";
+    const agreedDate = agreedDeliveryStatus(sale);
     return `
       <article class="order-mobile-card ${archived ? "archived-card" : ""} ${problems.length ? "problem-card-highlight" : ""}">
         <button class="order-card-main" data-sale-action="view" data-id="${sale.id}" aria-label="Abrir pedido ${U.escapeHtml(sale.codigo)}">
@@ -390,6 +395,7 @@
             <span class="order-card-code">#${U.escapeHtml(sale.codigo)}</span>
             ${statusChip(sale.estadoPedido)}
             ${problems.length ? `<span class="order-problem-indicator" title="${problems.length} problema${problems.length === 1 ? "" : "s"} registrado${problems.length === 1 ? "" : "s"}" aria-label="Pedido con problemas">!</span>` : ""}
+            ${agreedDeliveryBadge(agreedDate)}
           </div>
           <strong class="order-card-client">${U.escapeHtml(sale.cliente)}</strong>
           <span class="order-card-product">${U.escapeHtml(sale.producto || sale.sku || "Sin código")}</span>
@@ -421,6 +427,8 @@
             <select data-sales-sort>
               <option value="fecha:desc" ${state.sort.key === "fecha" && state.sort.direction === "desc" ? "selected" : ""}>Más recientes</option>
               <option value="fecha:asc" ${state.sort.key === "fecha" && state.sort.direction === "asc" ? "selected" : ""}>Más antiguos</option>
+              <option value="fechaAcordadaEntrega:asc" ${state.sort.key === "fechaAcordadaEntrega" && state.sort.direction === "asc" ? "selected" : ""}>Entrega más próxima</option>
+              <option value="fechaAcordadaEntrega:desc" ${state.sort.key === "fechaAcordadaEntrega" && state.sort.direction === "desc" ? "selected" : ""}>Entrega más lejana</option>
               <option value="codigo:desc" ${state.sort.key === "codigo" && state.sort.direction === "desc" ? "selected" : ""}>Pedido mayor</option>
               <option value="codigo:asc" ${state.sort.key === "codigo" && state.sort.direction === "asc" ? "selected" : ""}>Pedido menor</option>
             </select>
@@ -434,6 +442,7 @@
         ${fieldSelect("Producto", "tipoProducto", state.lists.tiposProductos, f.tipoProducto, true, "data-filter")}
         ${fieldSelect("Canal", "canal", state.lists.canales, f.canal, true, "data-filter")}
         ${fieldSelect("Problema", "problema", ["Con problema", "Sin problema"], f.problema, true, "data-filter")}
+        ${fieldSelect("Fecha acordada", "fechaAcordadaEstado", ["Atrasados", "Hoy o mañana", "Sin fecha"], f.fechaAcordadaEstado, true, "data-filter")}
         <label class="field"><span>Desde</span><input type="date" data-filter="start" value="${U.escapeHtml(f.start)}"></label>
         <label class="field"><span>Hasta</span><input type="date" data-filter="end" value="${U.escapeHtml(f.end)}"></label>
         <label class="check-line"><input type="checkbox" data-filter="showArchived" ${f.showArchived ? "checked" : ""}> Ver papelera (pedidos archivados)</label>
@@ -445,9 +454,10 @@
     const archived = sale.active === false;
     const problems = U.saleProblems(sale);
     const shipping = hasShipping(sale);
+    const agreedDate = agreedDeliveryStatus(sale);
     return `
       <tr class="${archived ? "archived-row" : ""} ${problems.length ? "problem-row-highlight" : ""}">
-        <td>${U.formatDate(sale.fecha)}</td>
+        <td><span class="cell-primary">${U.formatDate(sale.fecha)}</span>${agreedDeliveryBadge(agreedDate, true)}</td>
         <td><button class="link-button cell-primary" data-sale-action="view" data-id="${sale.id}">${U.escapeHtml(sale.codigo)}</button></td>
         <td><span class="cell-primary">${U.escapeHtml(sale.cliente)}</span></td>
         <td>
@@ -622,7 +632,7 @@
     state.editingId = sale?.id || "";
     const preferences = readPreferences();
     let model = sale ? { ...sale } : {
-      fecha: U.today(), codigo: "", cliente: "", telefono: "", producto: "", sku: "", cantidad: 1,
+      fecha: U.today(), fechaAcordadaEntrega: "", codigo: "", cliente: "", telefono: "", producto: "", sku: "", cantidad: 1,
       tipoProducto: preferences.tipoProducto || "Termo 1200 ml",
       colorProducto: preferences.colorProducto || "Negro",
       disenoProducto: preferences.disenoProducto || "One Piece Luffy",
@@ -698,6 +708,7 @@
         <h3 class="form-section-title">Datos del pedido</h3>
         <div class="form-grid">
           ${fieldInput("Fecha", "fecha", "date", sale.fecha, true)}
+          ${fieldInput("Fecha acordada de entrega", "fechaAcordadaEntrega", "date", sale.fechaAcordadaEntrega)}
           <label class="field required"><span>Pedido #</span><div class="input-action"><input name="codigo" value="${U.escapeHtml(sale.codigo)}" inputmode="numeric" required><button class="btn btn-secondary" type="button" data-form-action="next-code" title="Generar el siguiente número">↻</button></div></label>
           ${fieldInput("Cliente", "cliente", "text", sale.cliente, true, "Nombre y apellido")}
           ${fieldSelect("Producto", "tipoProducto", (state.lists.tiposProductos || []).map((item) => item.nombre), sale.tipoProducto, false)}
@@ -1311,7 +1322,8 @@
     els.detailBody.innerHTML = `
       <div class="detail-simple-stack">
         ${detailBlock("Pedido", [
-          ["Fecha de venta", U.formatDate(sale.fecha)], ["Estado", sale.estadoPedido],
+          ["Fecha de venta", U.formatDate(sale.fecha)], ["Fecha acordada", U.formatDate(sale.fechaAcordadaEntrega)],
+          ["Estado", sale.estadoPedido],
           ["Cliente", sale.cliente], ["Código de producto", sale.producto || sale.sku || "—"],
           ["Agencia", sale.agencia || "—"]
         ])}
@@ -1620,7 +1632,7 @@
       if (action === "new-sale") openSaleForm();
       if (action === "toggle-filters") { state.filtersOpen = !state.filtersOpen; renderSales(); }
       if (action === "clear-filters") {
-        state.filters = { ...state.filters, search: "", start: "", end: "", estado: "", tipoProducto: "", agencia: "", canal: "", origen: "", modalidadPago: "", cuenta: "", estadoCobro: "", estadoLiquidacion: "", problema: "", showArchived: false };
+        state.filters = { ...state.filters, search: "", start: "", end: "", estado: "", tipoProducto: "", agencia: "", canal: "", origen: "", modalidadPago: "", cuenta: "", estadoCobro: "", estadoLiquidacion: "", problema: "", fechaAcordadaEstado: "", showArchived: false };
         state.salesQuickFilter = "all";
         state.page = 1; renderSales();
       }
@@ -1641,6 +1653,11 @@
     const operation = event.target.closest("[data-operation]");
     if (operation) {
       const target = operation.dataset.operation;
+      if (target === "overdue") {
+        state.salesQuickFilter = "overdue";
+        navigate("ventas");
+        return;
+      }
       if (target === "problems") {
         navigate("problemas");
         return;
@@ -1825,7 +1842,8 @@
       return;
     }
     const columns = [
-      ["Fecha", "fecha"], ["Código", "codigo"], ["Cliente", "cliente"], ["Teléfono", "telefono"],
+      ["Fecha", "fecha"], ["Fecha acordada de entrega", "fechaAcordadaEntrega"],
+      ["Código", "codigo"], ["Cliente", "cliente"], ["Teléfono", "telefono"],
       ["SKU", "sku"], ["Producto", "tipoProducto"], ["Color", "colorProducto"], ["Diseño", "disenoProducto"],
       ["Cantidad", "cantidad"], ["Venta total", "ventaTotal"],
       ["Cobrado", "cobradoTotal"], ["Por cobrar", "porCobrar"], ["Costo total", "costoTotal"],
@@ -1908,6 +1926,7 @@
       if (state.salesQuickFilter === "route" && sale.estadoPedido !== "Despachado") return false;
       if (state.salesQuickFilter === "delivered" && sale.estadoPedido !== "Entregado") return false;
       if (state.salesQuickFilter === "problems" && U.saleProblems(sale).length === 0) return false;
+      if (state.salesQuickFilter === "overdue" && !isOverdueSale(sale)) return false;
       if (term) {
         const haystack = U.normalizeText([
           sale.codigo, sale.cliente, sale.telefono, sale.producto, sale.sku,
@@ -1931,6 +1950,10 @@
       const hasProblem = U.normalizeText(sale.tipoProblema) !== "no";
       if (f.problema === "Con problema" && !hasProblem) return false;
       if (f.problema === "Sin problema" && hasProblem) return false;
+      const agreedStatus = agreedDeliveryStatus(sale);
+      if (f.fechaAcordadaEstado === "Atrasados" && agreedStatus.key !== "overdue") return false;
+      if (f.fechaAcordadaEstado === "Hoy o mañana" && agreedStatus.key !== "soon") return false;
+      if (f.fechaAcordadaEstado === "Sin fecha" && agreedStatus.key !== "none") return false;
       return true;
     });
   }
@@ -1938,6 +1961,15 @@
   function sortSales(sales) {
     const { key, direction } = state.sort;
     return [...sales].sort((a, b) => {
+      if (key === "fechaAcordadaEntrega") {
+        const aDate = U.dateInput(a.fechaAcordadaEntrega);
+        const bDate = U.dateInput(b.fechaAcordadaEntrega);
+        if (!aDate && !bDate) return 0;
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+        const dateComparison = aDate.localeCompare(bDate);
+        return direction === "asc" ? dateComparison : -dateComparison;
+      }
       const av = a[key] ?? "";
       const bv = b[key] ?? "";
       const comparison = typeof av === "number" && typeof bv === "number"
@@ -2138,6 +2170,36 @@
   }
 
   function percent(value, total) { return total ? Math.round((value / total) * 100) : 0; }
+  function agreedDeliveryStatus(sale) {
+    const agreedDate = U.dateInput(sale?.fechaAcordadaEntrega);
+    if (sale?.estadoPedido === "Entregado") {
+      return { key: "delivered", label: "Entregado", date: agreedDate };
+    }
+    if (sale?.estadoPedido === "Cancelado" || !agreedDate) {
+      return { key: "none", label: "Sin fecha", date: "" };
+    }
+    const today = new Date(`${U.today()}T12:00:00-05:00`);
+    const delivery = new Date(`${agreedDate}T12:00:00-05:00`);
+    const difference = Math.round((delivery - today) / 86400000);
+    if (difference < 0) {
+      const lateDays = Math.abs(difference);
+      return { key: "overdue", label: `Atrasado ${lateDays} d.`, date: agreedDate };
+    }
+    if (difference === 0) return { key: "soon", label: "Entrega hoy", date: agreedDate };
+    if (difference === 1) return { key: "soon", label: "Entrega mañana", date: agreedDate };
+    const [, month, day] = agreedDate.split("-");
+    return { key: "scheduled", label: `Entrega ${day}/${month}`, date: agreedDate };
+  }
+
+  function isOverdueSale(sale) {
+    return agreedDeliveryStatus(sale).key === "overdue";
+  }
+
+  function agreedDeliveryBadge(status, secondary = false) {
+    const title = status.date ? `Fecha acordada: ${U.formatDate(status.date)}` : status.label;
+    return `<span class="agreed-date agreed-date-${status.key} ${secondary ? "agreed-date-secondary" : ""}" title="${U.escapeHtml(title)}">${U.escapeHtml(status.label)}</span>`;
+  }
+
   function hasShipping(sale) {
     return Boolean(
       String(sale?.agencia || "").trim() ||

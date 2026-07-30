@@ -6,6 +6,11 @@
     d.setDate(d.getDate() - days);
     return U.dateInput(d);
   };
+  const inDays = (days) => {
+    const d = new Date(`${U.today()}T12:00:00-05:00`);
+    d.setDate(d.getDate() + days);
+    return U.dateInput(d);
+  };
 
   const productTypes = [
     { nombre: "Termo 1200 ml", codigo: "1200", costoBase: 25.5, colores: ["Negro", "Crema", "Blanco"] },
@@ -81,6 +86,7 @@
     otrosCostos: 0,
     costoProblema: 0,
     modalidadLogistica: "Entrega y cobro",
+    fechaAcordadaEntrega: "",
     fechaDespacho: "",
     codigoSeguimiento: "",
     fechaEntrega: "",
@@ -98,12 +104,12 @@
   };
 
   const rawSales = [
-    { fecha: ago(0), codigo: "12", cliente: "María Fernanda", tipoProducto: "Termo 1200 ml", colorProducto: "Negro", disenoProducto: "One Piece Luffy", ventaTotal: 119.9, adelanto: 19.9, cuentaAdelanto: "Gonzalo", cuentaSaldo: "DINSIDES", agencia: "DINSIDES", estadoPedido: "Producción", canal: "Instagram", origen: "Meta Ads", grabadoLaser: true, costoEnvio: 12, pagadorLogistica: "Gonzalo", modalidadPago: "Adelanto + Contra entrega" },
-    { fecha: ago(0), codigo: "11", cliente: "Diego Ramos", tipoProducto: "Termo 890 ml", colorProducto: "Crema", disenoProducto: "Jujutsu Kaisen Toji", ventaTotal: 89.9, adelanto: 89.9, cuentaAdelanto: "Gonzalo", agencia: "Shalom", estadoPedido: "Por despachar", canal: "TikTok", origen: "Orgánico", costoEnvio: 15, pagadorLogistica: "Gonzalo", modalidadLogistica: "Envío a provincia", modalidadPago: "Pago completo" },
-    { fecha: ago(1), codigo: "10", cliente: "Ana Lucía", tipoProducto: "Shaker", colorProducto: "Azul", disenoProducto: "Dragon Ball", ventaTotal: 99.9, adelanto: 99.9, cuentaAdelanto: "Mancomunada", agencia: "DINSIDES", estadoPedido: "Por despachar", canal: "Shopify WEB", origen: "Meta Ads", costoEnvio: 12, pagadorLogistica: "DINSIDES", modalidadLogistica: "Recojo sin cobro", modalidadPago: "Shopify Web" },
-    { fecha: ago(1), codigo: "9", cliente: "Carlos Vega", tipoProducto: "Termo 1200 ml", colorProducto: "Blanco", disenoProducto: "Demon Slayer", ventaTotal: 109.9, adelanto: 19.9, saldoCobrado: 90, cuentaAdelanto: "Gonzalo", cuentaSaldo: "DINSIDES", agencia: "DINSIDES", estadoPedido: "Despachado", fechaDespacho: ago(1), canal: "Instagram", origen: "Orgánico", grabadoLaser: true, costoEnvio: 12, costoRecojo: 8, pagadorLogistica: "DINSIDES", modalidadPago: "Adelanto + Contra entrega" },
-    { fecha: ago(2), codigo: "8", cliente: "Sofía Salazar", tipoProducto: "Termo 890 ml", colorProducto: "Negro", disenoProducto: "Bleach", ventaTotal: 129.9, adelanto: 129.9, cuentaAdelanto: "Mancomunada", agencia: "Olva", estadoPedido: "Producción", canal: "Shopify WEB", origen: "TikTok Ads", paisCompra: "Internacional", costoEnvio: 16, modalidadPago: "Shopify Web" },
-    { fecha: ago(3), codigo: "7", cliente: "Renzo Molina", tipoProducto: "Termo 890 ml", colorProducto: "Crema", disenoProducto: "Personalizado", ventaTotal: 89.9, adelanto: 19.9, saldoCobrado: 70, cuentaAdelanto: "Alberto", cuentaSaldo: "DINSIDES", agencia: "DINSIDES", estadoPedido: "Entregado", fechaDespacho: ago(2), fechaEntrega: ago(1), canal: "Recomendación", origen: "Orgánico", grabadoLaser: true, costoEnvio: 12, pagadorLogistica: "Alberto", modalidadPago: "Adelanto + Contra entrega" },
+    { fecha: ago(0), fechaAcordadaEntrega: inDays(0), codigo: "12", cliente: "María Fernanda", tipoProducto: "Termo 1200 ml", colorProducto: "Negro", disenoProducto: "One Piece Luffy", ventaTotal: 119.9, adelanto: 19.9, cuentaAdelanto: "Gonzalo", cuentaSaldo: "DINSIDES", agencia: "DINSIDES", estadoPedido: "Producción", canal: "Instagram", origen: "Meta Ads", grabadoLaser: true, costoEnvio: 12, pagadorLogistica: "Gonzalo", modalidadPago: "Adelanto + Contra entrega" },
+    { fecha: ago(0), fechaAcordadaEntrega: inDays(1), codigo: "11", cliente: "Diego Ramos", tipoProducto: "Termo 890 ml", colorProducto: "Crema", disenoProducto: "Jujutsu Kaisen Toji", ventaTotal: 89.9, adelanto: 89.9, cuentaAdelanto: "Gonzalo", agencia: "Shalom", estadoPedido: "Por despachar", canal: "TikTok", origen: "Orgánico", costoEnvio: 15, pagadorLogistica: "Gonzalo", modalidadLogistica: "Envío a provincia", modalidadPago: "Pago completo" },
+    { fecha: ago(1), fechaAcordadaEntrega: inDays(3), codigo: "10", cliente: "Ana Lucía", tipoProducto: "Shaker", colorProducto: "Azul", disenoProducto: "Dragon Ball", ventaTotal: 99.9, adelanto: 99.9, cuentaAdelanto: "Mancomunada", agencia: "DINSIDES", estadoPedido: "Por despachar", canal: "Shopify WEB", origen: "Meta Ads", costoEnvio: 12, pagadorLogistica: "DINSIDES", modalidadLogistica: "Recojo sin cobro", modalidadPago: "Shopify Web" },
+    { fecha: ago(1), fechaAcordadaEntrega: ago(1), codigo: "9", cliente: "Carlos Vega", tipoProducto: "Termo 1200 ml", colorProducto: "Blanco", disenoProducto: "Demon Slayer", ventaTotal: 109.9, adelanto: 19.9, saldoCobrado: 90, cuentaAdelanto: "Gonzalo", cuentaSaldo: "DINSIDES", agencia: "DINSIDES", estadoPedido: "Despachado", fechaDespacho: ago(1), canal: "Instagram", origen: "Orgánico", grabadoLaser: true, costoEnvio: 12, costoRecojo: 8, pagadorLogistica: "DINSIDES", modalidadPago: "Adelanto + Contra entrega" },
+    { fecha: ago(2), fechaAcordadaEntrega: ago(2), codigo: "8", cliente: "Sofía Salazar", tipoProducto: "Termo 890 ml", colorProducto: "Negro", disenoProducto: "Bleach", ventaTotal: 129.9, adelanto: 129.9, cuentaAdelanto: "Mancomunada", agencia: "Olva", estadoPedido: "Producción", canal: "Shopify WEB", origen: "TikTok Ads", paisCompra: "Internacional", costoEnvio: 16, modalidadPago: "Shopify Web" },
+    { fecha: ago(3), fechaAcordadaEntrega: ago(1), codigo: "7", cliente: "Renzo Molina", tipoProducto: "Termo 890 ml", colorProducto: "Crema", disenoProducto: "Personalizado", ventaTotal: 89.9, adelanto: 19.9, saldoCobrado: 70, cuentaAdelanto: "Alberto", cuentaSaldo: "DINSIDES", agencia: "DINSIDES", estadoPedido: "Entregado", fechaDespacho: ago(2), fechaEntrega: ago(1), canal: "Recomendación", origen: "Orgánico", grabadoLaser: true, costoEnvio: 12, pagadorLogistica: "Alberto", modalidadPago: "Adelanto + Contra entrega" },
     { fecha: ago(4), codigo: "6", cliente: "Valeria Ponce", tipoProducto: "Shaker", colorProducto: "Negro", disenoProducto: "Chainsawman", ventaTotal: 99.9, adelanto: 99.9, cuentaAdelanto: "Gonzalo", agencia: "Shalom", estadoPedido: "Despachado", fechaDespacho: ago(3), codigoSeguimiento: "SH-443991", canal: "Instagram", origen: "Meta Ads", costoEnvio: 15, pagadorLogistica: "Gonzalo", modalidadPago: "Pago completo" },
     { fecha: ago(6), codigo: "5", cliente: "José Medina", tipoProducto: "Termo 1200 ml", colorProducto: "Negro", disenoProducto: "Naruto", ventaTotal: 119.9, adelanto: 19.9, saldoCobrado: 100, cuentaAdelanto: "Gonzalo", cuentaSaldo: "DINSIDES", agencia: "DINSIDES", estadoPedido: "Despachado", fechaDespacho: ago(5), canal: "TikTok", origen: "TikTok Ads", grabadoLaser: true, costoEnvio: 12, pagadorLogistica: "DINSIDES", tipoProblema: "Cliente no estaba", descripcionProblema: "Reprogramado para mañana", costoProblema: 5, modalidadPago: "Adelanto + Contra entrega" },
     { fecha: ago(8), codigo: "4", cliente: "Camila Torres", tipoProducto: "Termo 890 ml", colorProducto: "Blanco", disenoProducto: "One Piece Zoro", ventaTotal: 89.9, adelanto: 89.9, cuentaAdelanto: "Mancomunada", agencia: "DINSIDES", estadoPedido: "Entregado", fechaDespacho: ago(7), fechaEntrega: ago(6), canal: "Shopify WEB", origen: "Orgánico", costoEnvio: 12, pagadorLogistica: "DINSIDES", pagadoADinsides: 12, modalidadPago: "Shopify Web" },
