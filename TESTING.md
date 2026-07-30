@@ -53,15 +53,17 @@ Usa una venta de S/ 119.90.
 - [ ] **Costo personalizado:** actívalo, escribe S/ 40 y confirma que reemplaza el costo automático del pedido.
 - [ ] **Cobro mayor a venta:** pide confirmación antes de guardar.
 
-## Liquidaciones de los escenarios reales
+## Caja interna
 
 - [ ] **Gonzalo + DINSIDES:** venta 119.90; adelanto 19.90 a Gonzalo; saldo 100 a DINSIDES; envío 12 pagado por Gonzalo → Gonzalo S/ 7.90 y DINSIDES S/ 100.00.
-- [ ] **DINSIDES descuenta envío:** saldo 100 a DINSIDES; envío 12 y pagador DINSIDES → DINSIDES debe depositar S/ 88.00.
-- [ ] **Pedido pagado y recojo DINSIDES:** pago 119.90 a Mancomunada; saldo DINSIDES 0; envío 12 y pagador DINSIDES → Termal debe pagar S/ 12.00.
+- [ ] **DINSIDES descuenta envío:** saldo 100 a DINSIDES; envío 12 y pagador DINSIDES → DINSIDES debe devolver S/ 88.00.
+- [ ] **Pedido pagado y recojo DINSIDES:** pago 119.90 a Mancomunada; saldo DINSIDES 0; envío 12 y pagador DINSIDES → DINSIDES debe devolver −S/ 12.00.
 - [ ] **Shalom provincia:** pago completo 119.90 a Gonzalo; envío 15 pagado por Gonzalo → Gonzalo debe devolver S/ 104.90.
 - [ ] **Izipay:** pago 119.90 a Mancomunada → Gonzalo y Alberto deben devolver S/ 0.00.
 - [ ] **Alberto:** pago 89.90 a Alberto; envío 12 pagado por Alberto → Alberto debe devolver S/ 77.90.
 - [ ] **Saldo negativo:** sin dinero recibido por Gonzalo, registra un envío de S/ 12 pagado por Gonzalo → Gonzalo debe devolver −S/ 12.00 y la tarjeta indica que es un saldo a su favor.
+- [ ] **Saldo único:** Caja muestra solo una tarjeta por Gonzalo, Alberto y DINSIDES; no aparece una fila general “Termal debe pagar”.
+- [ ] **Desglose exacto:** abre cada persona y confirma que la suma de cobros, gastos y liquidaciones coincide con el saldo mostrado.
 - [ ] **Devolución parcial:** registra menos que el total pendiente. El pedido muestra liquidación Parcial.
 - [ ] **Aplicación por antigüedad:** registra una devolución que cubra varios pedidos. Confirma en el detalle que se aplicó primero al más antiguo.
 - [ ] **Monto excesivo:** intenta registrar más que el pendiente. Debe rechazarlo.
@@ -90,7 +92,7 @@ Usa una venta de S/ 119.90.
 - [ ] Ventas por canal, Utilidad por producto y Diseños más vendidos cambian junto con el periodo.
 - [ ] En móvil el selector de periodo ocupa una sola fila cuando no necesita fechas adicionales.
 - [ ] Histórico incluye todos los pedidos; el selector mensual permite revisar por lo menos los últimos 24 meses.
-- [ ] Haz clic en una liquidación y revisa los pedidos que componen el total.
+- [ ] La sección Caja interna del Dashboard muestra un solo saldo firmado por persona y abre su desglose.
 - [ ] Busca por código, cliente y producto.
 - [ ] Prueba filtros de estado, producto, canal y problema.
 - [ ] Exporta CSV y confirma que Excel lo abre con acentos correctos.
@@ -109,7 +111,7 @@ Usa una venta de S/ 119.90.
 ## Celular y accesibilidad
 
 - [ ] Abre la aplicación en un teléfono o usa el modo móvil del navegador.
-- [ ] El menú inferior permite abrir Dashboard, Pedidos y Problemas.
+- [ ] El menú inferior permite abrir Dashboard, Pedidos, Caja y Problemas.
 - [ ] El botón central ＋ abre Nueva venta.
 - [ ] El formulario puede desplazarse y el botón Guardar permanece visible.
 - [ ] Pedidos usa tarjetas en móvil y no provoca desplazamiento horizontal en la página.

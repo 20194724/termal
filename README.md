@@ -2,7 +2,7 @@
 
 Aplicación web sencilla para registrar ventas una sola vez y obtener automáticamente el SKU, los cobros, el costo, la utilidad y el estado operativo.
 
-La navegación diaria tiene tres secciones: **Dashboard**, **Pedidos** y **Problemas**. Producción, Por despachar, Despachados y Entregados se gestionan mediante filtros y acciones dentro de Pedidos.
+La navegación diaria tiene cuatro secciones: **Dashboard**, **Pedidos**, **Caja interna** y **Problemas**. Producción, Por despachar, Despachados y Entregados se gestionan mediante filtros y acciones dentro de Pedidos.
 
 No necesitas instalar programas ni contratar un servidor. La aplicación usa:
 
@@ -257,10 +257,16 @@ El Dashboard está dedicado al análisis y evita repetir la lista operativa de P
 
 Puedes consultar **Hoy**, **Esta semana**, todo el **Histórico**, un mes específico o un rango personalizado desde un único selector compacto. Todas las métricas y comparaciones se actualizan juntas.
 
+### Consultar la Caja interna
+
+Caja interna reúne en un solo saldo lo que Gonzalo, Alberto y DINSIDES mantienen con Termal. Un saldo positivo significa que la persona debe entregar dinero a Termal; un saldo negativo significa que Termal debe reembolsarle.
+
+Pulsa una persona para revisar cómo se forma su saldo. El desglose separa cobros recibidos, envíos o recojos pagados y liquidaciones aplicadas, siempre con el pedido y cliente relacionados.
+
 ### Registrar una devolución a la mancomunada
 
-1. En el Dashboard, haz clic en **Registrar devolución**.
-2. Para Alberto, abre primero la tarjeta **Alberto debe devolver** y pulsa **Registrar devolución**.
+1. Abre **Caja interna** y haz clic en **Registrar devolución**.
+2. También puedes abrir la tarjeta de Gonzalo o Alberto y registrar desde su desglose.
 3. Ingresa el monto y la fecha.
 4. Añade una observación si deseas.
 5. Confirma.

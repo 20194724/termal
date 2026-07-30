@@ -176,6 +176,24 @@
     })).filter((payment) => payment.monto > 0);
   }
 
+  function cashSaleBalance(input, person) {
+    const sale = input || {};
+    const normalized = normalizeText(person);
+    if (normalized === "gonzalo") return money(sale.gonzaloDebeDevolver);
+    if (normalized === "alberto") return money(sale.albertoDebeDevolver);
+    if (normalized === "dinsides") {
+      return money(number(sale.dinsidesDebeDepositar) - number(sale.termalDebePagarDinsides));
+    }
+    return 0;
+  }
+
+  function cashBalances(sales = []) {
+    return ["Gonzalo", "Alberto", "DINSIDES"].map((person) => ({
+      person,
+      balance: money(sales.reduce((sum, sale) => sum + cashSaleBalance(sale, person), 0))
+    }));
+  }
+
   function calculateSale(input) {
     const sale = { ...input };
     const fields = [
@@ -345,6 +363,7 @@
   globalThis.TermalUtils = {
     number, money, currency, dateInput, formatDate, today, uid, escapeHtml,
     normalizeText, daysSince, productBaseCost, buildSku, productDescription,
-    saleProblems, salePayments, calculateSale, validateSale, periodRange, inRange, download
+    saleProblems, salePayments, cashSaleBalance, cashBalances, calculateSale, validateSale,
+    periodRange, inRange, download
   };
 })();

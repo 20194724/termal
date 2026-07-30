@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#6e103d">
-  <meta name="description" content="ERP MINI TERMAL: ventas, producción, despachos y liquidaciones en un solo lugar.">
+  <meta name="description" content="ERP MINI TERMAL: pedidos, despachos y caja interna en un solo lugar.">
   <title>ERP MINI TERMAL</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -21,6 +21,7 @@
       <nav class="sidebar-nav">
         <button class="nav-link active" data-route="dashboard"><span>⌂</span> Dashboard</button>
         <button class="nav-link" data-route="ventas"><span>▤</span> Pedidos</button>
+        <button class="nav-link" data-route="caja"><span>↔</span> Caja interna</button>
         <button class="nav-link" data-route="problemas"><span>!</span> Problemas</button>
       </nav>
       <div class="sidebar-footer">
@@ -60,6 +61,7 @@
     <button class="nav-link active" data-route="dashboard"><span>⌂</span><small>Inicio</small></button>
     <button class="nav-link" data-route="ventas"><span>▤</span><small>Pedidos</small></button>
     <button class="mobile-new" id="mobileNewSale" aria-label="Nueva venta">＋</button>
+    <button class="nav-link" data-route="caja"><span>↔</span><small>Caja</small></button>
     <button class="nav-link" data-route="problemas"><span>!</span><small>Problemas</small></button>
   </nav>
 
@@ -135,7 +137,7 @@
 
   <dialog id="detailDialog" class="modal modal-wide">
     <div class="modal-header sticky">
-      <div><p class="eyebrow">DETALLE DEL PEDIDO</p><h2 id="detailTitle">Pedido</h2></div>
+      <div><p class="eyebrow" id="detailEyebrow">DETALLE DEL PEDIDO</p><h2 id="detailTitle">Pedido</h2></div>
       <button class="close-button" data-close="detailDialog" aria-label="Cerrar">×</button>
     </div>
     <div class="modal-body" id="detailBody"></div>

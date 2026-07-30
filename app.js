@@ -41,7 +41,7 @@
     [
       "mainContent", "pageTitle", "lastSync", "syncState", "syncButton", "newSaleButton",
       "mobileNewSale", "dataModeBadge", "helpButton", "saleDialog", "saleForm", "saleFormBody",
-      "saleModalTitle", "saveSaleButton", "detailDialog", "detailTitle", "detailBody",
+      "saleModalTitle", "saveSaleButton", "detailDialog", "detailEyebrow", "detailTitle", "detailBody",
       "detailFooter", "movementDialog", "movementForm", "movementTitle", "movementBody",
       "paymentDialog", "paymentForm", "paymentBody",
       "shippingDialog", "shippingForm", "shippingTitle", "shippingBody",
@@ -148,7 +148,8 @@
     const renderers = {
       dashboard: renderDashboard,
       ventas: renderSales,
-      problemas: renderProblems
+      problemas: renderProblems,
+      caja: renderCash
     };
     (renderers[state.route] || renderDashboard)();
   }
@@ -159,7 +160,7 @@
     document.querySelectorAll("[data-route]").forEach((button) => {
       button.classList.toggle("active", button.dataset.route === route);
     });
-    const titles = { dashboard: "Dashboard", ventas: "Pedidos", problemas: "Problemas" };
+    const titles = { dashboard: "Dashboard", ventas: "Pedidos", problemas: "Problemas", caja: "Caja interna" };
     els.pageTitle.textContent = titles[route] || "ERP MINI TERMAL";
     render();
     els.mainContent.focus({ preventScroll: true });
@@ -177,7 +178,7 @@
     const range = dashboardRange();
     const sales = active.filter((sale) => U.inRange(sale.fecha, range));
     const totals = summarize(sales);
-    const allOutstanding = obligations(active);
+    const cashBalances = U.cashBalances(active);
     const channels = groupDashboardSales(sales, "canal").sort((a, b) => b.sales - a.sales);
     const products = groupDashboardSales(sales, "tipoProducto").sort((a, b) => b.profit - a.profit);
     const designs = groupDashboardSales(sales, "disenoProducto").sort((a, b) =>
@@ -253,20 +254,52 @@
         </section>
       </div>
 
-      <section class="card liquidation-card dashboard-liquidations">
+      <section class="card cash-summary-card dashboard-cash">
         <div class="section-head">
-          <div><h3>Liquidaciones pendientes</h3><p>Haz clic para ver los pedidos</p></div>
+          <div><h3>Caja interna</h3><p>Un solo saldo por persona</p></div>
           <div class="page-actions">
-            <button class="btn btn-sm btn-secondary" data-action="movement-history">Historial</button>
-            <button class="btn btn-sm btn-secondary" data-action="new-return">Registrar devolución</button>
+            <button class="btn btn-sm btn-secondary" data-action="open-cash">Ver Caja</button>
           </div>
         </div>
-        <div class="liquidation-list">
-          ${liquidationItem("GONZALO_RETURN", "G", "Gonzalo debe devolver", allOutstanding.gonzalo, active)}
-          ${liquidationItem("ALBERTO_RETURN", "A", "Alberto debe devolver", allOutstanding.alberto, active)}
-          ${liquidationItem("DINSIDES_DEPOSIT", "D", "DINSIDES debe depositar", allOutstanding.dinsides, active)}
-          ${liquidationItem("TERMAL_PAY_DINSIDES", "T", "Termal debe pagar", allOutstanding.termalDinsides, active)}
+        <div class="cash-summary-list">
+          ${cashBalances.map((item) => cashPersonRow(item, true)).join("")}
         </div>
+      </section>
+    `;
+  }
+
+  function renderCash() {
+    const active = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido !== "Cancelado");
+    const balances = U.cashBalances(active);
+    const receivable = U.money(balances.reduce((sum, item) => sum + Math.max(0, item.balance), 0));
+    const reimbursable = U.money(balances.reduce((sum, item) => sum + Math.abs(Math.min(0, item.balance)), 0));
+
+    els.mainContent.innerHTML = `
+      <div class="cash-intro">
+        <div>
+          <p class="eyebrow">CONTROL DEL DINERO</p>
+          <h2>Saldos por persona</h2>
+          <p>Cada persona tiene un único saldo neto con Termal.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary btn-sm" data-action="movement-history">Historial</button>
+          <button class="btn btn-primary btn-sm" data-action="new-return">Registrar devolución</button>
+        </div>
+      </div>
+
+      <div class="cash-total-grid">
+        ${metric("Termal por recibir", U.currency(receivable), "+", `${balances.filter((item) => item.balance > 0).length} personas con saldo positivo`, "warning")}
+        ${metric("Termal por reembolsar", U.currency(reimbursable), "−", reimbursable ? "Saldos a favor de personas" : "No hay reembolsos pendientes", "purple")}
+      </div>
+
+      <div class="cash-person-grid">
+        ${balances.map(cashPersonCard).join("")}
+      </div>
+
+      <section class="card cash-legend">
+        <div><strong>Saldo positivo</strong><span>La persona debe entregar dinero a Termal.</span></div>
+        <div><strong>Saldo negativo</strong><span>Termal debe devolver dinero a la persona.</span></div>
+        <div><strong>Saldo cero</strong><span>No existe deuda entre ambos.</span></div>
       </section>
     `;
   }
@@ -1229,6 +1262,7 @@
   async function openDetail(id) {
     const sale = state.sales.find((item) => item.id === id);
     if (!sale) return;
+    els.detailEyebrow.textContent = "DETALLE DEL PEDIDO";
     els.detailTitle.textContent = `${sale.codigo} · ${sale.cliente}`;
     const problems = U.saleProblems(sale);
     const payments = salePaymentTimeline(sale);
@@ -1363,34 +1397,44 @@
     return /^https?:\/\//i.test(url) ? url : "";
   }
 
-  function openLiquidationDetail(type) {
-    const definitions = {
-      GONZALO_RETURN: ["Gonzalo debe devolver", "gonzaloDebeDevolver", "Gonzalo"],
-      ALBERTO_RETURN: ["Alberto debe devolver", "albertoDebeDevolver", "Alberto"],
-      DINSIDES_DEPOSIT: ["DINSIDES debe depositar", "dinsidesDebeDepositar", "DINSIDES"],
-      TERMAL_PAY_DINSIDES: ["Termal debe pagar a DINSIDES", "termalDebePagarDinsides", "DINSIDES"]
-    };
-    const [label, key, person] = definitions[type];
-    const sales = state.sales.filter((sale) => sale.active !== false && Math.abs(U.number(sale[key])) >= 0.01)
-      .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
-    const total = U.money(sales.reduce((sum, sale) => sum + U.number(sale[key]), 0));
-    const negativePersonBalance = total < 0 && (type === "GONZALO_RETURN" || type === "ALBERTO_RETURN");
-    els.detailTitle.textContent = label;
+  function openCashDetail(person) {
+    const active = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido !== "Cancelado");
+    const balance = U.cashBalances(active).find((item) => item.person === person)?.balance || 0;
+    const entries = cashBreakdownEntries(person, active);
+    const history = cashHistoryEntries(person);
+    const registerType = legacyMovementType(person, balance);
+    const pendingCount = new Set(entries.filter((entry) => entry.saleId).map((entry) => entry.saleId)).size;
+
+    els.detailEyebrow.textContent = "CAJA INTERNA";
+    els.detailTitle.textContent = `Caja · ${person}`;
     els.detailBody.innerHTML = `
-      <div class="metric-card warning"><div class="metric-label">Saldo neto</div><div class="metric-value">${U.currency(total)}</div><div class="metric-meta">${negativePersonBalance ? `El saldo negativo significa que Termal le debe a ${person}` : `${sales.length} pedido${sales.length === 1 ? "" : "s"}`}</div></div>
-      <div class="history-list" style="margin-top:14px">
-        ${sales.length ? sales.map((sale) => `<button class="liquidation-item" data-liq-sale="${sale.id}">
-          <span class="avatar">${U.escapeHtml(sale.codigo.slice(-2))}</span>
-          <span><strong>${U.escapeHtml(sale.codigo)} · ${U.escapeHtml(sale.cliente)}</strong><small>${U.formatDate(sale.fecha)} · ${U.escapeHtml(sale.producto)}</small></span>
-          <span class="amount ${U.number(sale[key]) < 0 ? "negative-balance" : ""}">${U.currency(sale[key])}</span>
-        </button>`).join("") : `<p class="empty-state">No hay liquidaciones pendientes.</p>`}
-      </div>`;
+      <section class="cash-detail-balance ${cashBalanceClass(balance)}">
+        <span>Saldo actual</span>
+        <strong>${U.currency(balance)}</strong>
+        <small>${cashBalanceMessage(person, balance)}</small>
+      </section>
+
+      <div class="cash-detail-section">
+        <div class="cash-detail-heading"><div><p class="eyebrow">DESGLOSE</p><h3>Cómo se forma el saldo</h3></div><span>${pendingCount} pedido${pendingCount === 1 ? "" : "s"}</span></div>
+        <div class="cash-entry-list">
+          ${entries.length ? entries.map(cashEntryMarkup).join("") : `<p class="cash-empty">No hay movimientos que afecten este saldo.</p>`}
+        </div>
+        <div class="cash-detail-total"><span>Total</span><strong>${U.currency(balance)}</strong></div>
+      </div>
+
+      <details class="detail-disclosure cash-history-disclosure">
+        <summary><span>Historial registrado</span><small>${history.length} movimiento${history.length === 1 ? "" : "s"}</small></summary>
+        <div class="detail-disclosure-body">
+          ${history.length ? `<div class="cash-entry-list">${history.map(cashEntryMarkup).join("")}</div>` : `<p class="cash-empty">Aún no hay transferencias o reembolsos registrados para ${U.escapeHtml(person)}.</p>`}
+        </div>
+      </details>`;
     els.detailFooter.innerHTML = `
       <button class="btn btn-secondary" data-close-detail>Cerrar</button>
-      ${total > 0 ? `<button class="btn btn-primary" data-register-type="${type}">${type.includes("RETURN") ? "Registrar devolución" : "Registrar como realizado"}</button>` : ""}`;
+      ${registerType ? `<button class="btn btn-primary" data-register-type="${registerType}">${balance < 0 ? "Registrar reembolso" : person === "DINSIDES" ? "Registrar depósito" : "Registrar devolución"}</button>` : ""}`;
     els.detailFooter.querySelector("[data-close-detail]").addEventListener("click", () => closeDialog("detailDialog"));
-    els.detailBody.querySelectorAll("[data-liq-sale]").forEach((button) => button.addEventListener("click", () => {
-      closeDialog("detailDialog"); openDetail(button.dataset.liqSale);
+    els.detailBody.querySelectorAll("[data-cash-sale]").forEach((button) => button.addEventListener("click", () => {
+      closeDialog("detailDialog");
+      openDetail(button.dataset.cashSale);
     }));
     els.detailFooter.querySelector("[data-register-type]")?.addEventListener("click", (event) => {
       closeDialog("detailDialog");
@@ -1592,6 +1636,7 @@
       if (action === "new-return") openMovement("GONZALO_RETURN");
       if (action === "movement-history") openMovementHistory();
       if (action === "open-dispatch") openDispatchDialog();
+      if (action === "open-cash") navigate("caja");
       return;
     }
     const quickFilter = event.target.closest("[data-quick-filter]");
@@ -1601,8 +1646,8 @@
       renderSales();
       return;
     }
-    const liquidation = event.target.closest("[data-liquidation]");
-    if (liquidation) { openLiquidationDetail(liquidation.dataset.liquidation); return; }
+    const cashPerson = event.target.closest("[data-cash-person]");
+    if (cashPerson) { openCashDetail(cashPerson.dataset.cashPerson); return; }
     const saleAction = event.target.closest("[data-sale-action]");
     if (saleAction) {
       const sale = state.sales.find((item) => item.id === saleAction.dataset.id);
@@ -1695,7 +1740,8 @@
   }
 
   function openMovementHistory() {
-    els.detailTitle.textContent = "Historial de liquidaciones";
+    els.detailEyebrow.textContent = "CAJA INTERNA";
+    els.detailTitle.textContent = "Historial de Caja";
     els.detailBody.innerHTML = state.movements.length ? `
       <div class="history-list">
         ${state.movements.slice(0, 50).map((movement) => `
@@ -1703,7 +1749,7 @@
             <span><strong>${movementLabel(movement.type)}</strong><small> · ${U.formatDate(movement.date)} · ${(movement.allocations || []).length} pedido${(movement.allocations || []).length === 1 ? "" : "s"}${movement.note ? ` · ${U.escapeHtml(movement.note)}` : ""}</small></span>
             <strong>${U.currency(movement.amount)}</strong>
           </div>`).join("")}
-      </div>` : emptyState("≋", "Aún no hay movimientos", "Las devoluciones y liquidaciones realizadas aparecerán aquí.");
+      </div>` : emptyState("≋", "Aún no hay movimientos", "Las transferencias, devoluciones y reembolsos aparecerán aquí.");
     els.detailFooter.innerHTML = `<button class="btn btn-secondary" data-close-detail>Cerrar</button>`;
     els.detailFooter.querySelector("[data-close-detail]").addEventListener("click", () => closeDialog("detailDialog"));
     els.detailDialog.showModal();
@@ -1909,16 +1955,6 @@
     return totals;
   }
 
-  function obligations(sales) {
-    return sales.reduce((acc, sale) => {
-      acc.gonzalo += U.number(sale.gonzaloDebeDevolver);
-      acc.alberto += U.number(sale.albertoDebeDevolver);
-      acc.dinsides += U.number(sale.dinsidesDebeDepositar);
-      acc.termalDinsides += U.number(sale.termalDebePagarDinsides);
-      return acc;
-    }, { gonzalo: 0, alberto: 0, dinsides: 0, termalDinsides: 0 });
-  }
-
   function pendingForType(type) {
     const map = {
       GONZALO_RETURN: "gonzaloDebeDevolver",
@@ -2031,17 +2067,164 @@
     }).join("")}</div>`;
   }
 
-  function liquidationItem(type, initial, label, amount, sales) {
-    const field = {
-      GONZALO_RETURN: "gonzaloDebeDevolver", ALBERTO_RETURN: "albertoDebeDevolver",
-      DINSIDES_DEPOSIT: "dinsidesDebeDepositar", TERMAL_PAY_DINSIDES: "termalDebePagarDinsides"
-    }[type];
-    const count = sales.filter((sale) => Math.abs(U.number(sale[field])) >= 0.01).length;
-    const person = type === "GONZALO_RETURN" ? "Gonzalo" : type === "ALBERTO_RETURN" ? "Alberto" : "";
-    const meta = amount < 0 && person
-      ? `Saldo a favor de ${person}`
-      : `${count} pedido${count === 1 ? "" : "s"}`;
-    return `<button class="liquidation-item" data-liquidation="${type}"><span class="avatar">${initial}</span><span><strong>${label}</strong><small>${meta}</small></span><span class="amount ${amount < 0 ? "negative-balance" : ""}">${U.currency(amount)}</span></button>`;
+  function cashBalanceClass(balance) {
+    if (balance > 0.009) return "cash-positive";
+    if (balance < -0.009) return "cash-negative";
+    return "cash-zero";
+  }
+
+  function cashBalanceMessage(person, balance) {
+    if (balance > 0.009) return `${person} debe entregar este dinero a Termal.`;
+    if (balance < -0.009) return `Termal debe devolver ${U.currency(Math.abs(balance))} a ${person}.`;
+    return "No existe deuda entre ambos.";
+  }
+
+  function cashPersonRow(item, compact = false) {
+    return `<button class="cash-person-row ${cashBalanceClass(item.balance)} ${compact ? "compact" : ""}" data-cash-person="${U.escapeHtml(item.person)}">
+      <span class="cash-avatar">${U.escapeHtml(item.person.slice(0, 1))}</span>
+      <span><strong>${U.escapeHtml(item.person)} debe devolver</strong><small>${U.escapeHtml(cashBalanceMessage(item.person, item.balance))}</small></span>
+      <span class="cash-amount">${U.currency(item.balance)}</span>
+    </button>`;
+  }
+
+  function cashPersonCard(item) {
+    return `<button class="cash-person-card ${cashBalanceClass(item.balance)}" data-cash-person="${U.escapeHtml(item.person)}">
+      <span class="cash-person-card-head"><span class="cash-avatar">${U.escapeHtml(item.person.slice(0, 1))}</span><small>${item.balance > 0.009 ? "Debe a Termal" : item.balance < -0.009 ? "Termal le debe" : "Al día"}</small></span>
+      <strong>${U.escapeHtml(item.person)}</strong>
+      <span class="cash-person-balance">${U.currency(item.balance)}</span>
+      <small>${U.escapeHtml(cashBalanceMessage(item.person, item.balance))}</small>
+      <em>Ver desglose →</em>
+    </button>`;
+  }
+
+  function cashBreakdownEntries(person, sales) {
+    return sales
+      .filter((sale) => Math.abs(U.cashSaleBalance(sale, person)) >= 0.01)
+      .flatMap((sale) => cashSaleEntries(person, sale))
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.code).localeCompare(String(a.code)));
+  }
+
+  function cashSaleEntries(person, sale) {
+    const entries = [];
+    const personKey = U.normalizeText(person);
+    salePaymentTimeline(sale).forEach((payment) => {
+      if (U.normalizeText(payment.cuenta) !== personKey) return;
+      entries.push({
+        amount: U.number(payment.monto),
+        concept: "Cobro recibido",
+        detail: payment.label,
+        saleId: sale.id,
+        code: sale.codigo,
+        client: sale.cliente,
+        date: payment.fecha || sale.fecha,
+        person
+      });
+    });
+    if (U.normalizeText(sale.pagadorLogistica) === personKey) {
+      if (U.number(sale.costoEnvio) > 0) {
+        entries.push({
+          amount: -U.number(sale.costoEnvio),
+          concept: "Envío pagado",
+          detail: sale.agencia || "Logística",
+          saleId: sale.id,
+          code: sale.codigo,
+          client: sale.cliente,
+          date: sale.fechaDespacho || sale.fecha,
+          person
+        });
+      }
+      if (U.number(sale.costoRecojo) > 0) {
+        entries.push({
+          amount: -U.number(sale.costoRecojo),
+          concept: "Recojo pagado",
+          detail: sale.agencia || "Logística",
+          saleId: sale.id,
+          code: sale.codigo,
+          client: sale.cliente,
+          date: sale.fechaDespacho || sale.fecha,
+          person
+        });
+      }
+    }
+    const expected = U.cashSaleBalance(sale, person);
+    const rawTotal = U.money(entries.reduce((sum, entry) => sum + entry.amount, 0));
+    const adjustment = U.money(expected - rawTotal);
+    if (Math.abs(adjustment) >= 0.01) {
+      entries.push({
+        amount: adjustment,
+        concept: adjustment < 0 ? "Liquidación aplicada" : "Reembolso aplicado",
+        detail: adjustment < 0 ? `${person} entregó dinero a Termal` : `Termal devolvió dinero a ${person}`,
+        saleId: sale.id,
+        code: sale.codigo,
+        client: sale.cliente,
+        date: U.dateInput(sale.updatedAt) || sale.fecha,
+        person
+      });
+    }
+    return entries;
+  }
+
+  function cashHistoryEntries(person) {
+    return state.movements
+      .filter((movement) => movementPerson(movement) === person)
+      .map((movement) => {
+        const allocations = movement.allocations || [];
+        const firstSale = allocations.length === 1
+          ? state.sales.find((sale) => sale.id === allocations[0].saleId)
+          : null;
+        return {
+          amount: movementSignedAmount(movement),
+          concept: movementLabel(movement.type),
+          detail: movement.note || `${allocations.length} pedido${allocations.length === 1 ? "" : "s"} aplicado${allocations.length === 1 ? "" : "s"}`,
+          saleId: firstSale?.id || "",
+          code: firstSale?.codigo || allocations.map((item) => item.codigo).filter(Boolean).join(", "),
+          client: firstSale?.cliente || "",
+          date: movement.date,
+          person
+        };
+      })
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  }
+
+  function movementPerson(movement) {
+    if (movement.persona) return String(movement.persona);
+    return {
+      GONZALO_RETURN: "Gonzalo",
+      ALBERTO_RETURN: "Alberto",
+      DINSIDES_DEPOSIT: "DINSIDES",
+      TERMAL_PAY_DINSIDES: "DINSIDES"
+    }[movement.type] || "";
+  }
+
+  function movementSignedAmount(movement) {
+    if (movement.signedAmount !== undefined) return U.number(movement.signedAmount);
+    return movement.type === "TERMAL_PAY_DINSIDES"
+      ? U.number(movement.amount)
+      : -U.number(movement.amount);
+  }
+
+  function legacyMovementType(person, balance) {
+    if (balance > 0.009) {
+      return { Gonzalo: "GONZALO_RETURN", Alberto: "ALBERTO_RETURN", DINSIDES: "DINSIDES_DEPOSIT" }[person] || "";
+    }
+    if (balance < -0.009 && person === "DINSIDES") return "TERMAL_PAY_DINSIDES";
+    return "";
+  }
+
+  function cashEntryMarkup(entry) {
+    const meta = [
+      entry.code ? `#${entry.code}` : "",
+      entry.client || "",
+      entry.date ? U.formatDate(entry.date) : "",
+      entry.detail || ""
+    ].filter(Boolean).join(" · ");
+    const content = `
+      <span class="cash-entry-sign">${entry.amount >= 0 ? "+" : "−"}</span>
+      <span class="cash-entry-copy"><strong>${U.escapeHtml(entry.concept)}</strong><small>${U.escapeHtml(meta)}</small></span>
+      <strong class="cash-entry-amount">${entry.amount > 0 ? "+" : ""}${U.currency(entry.amount)}</strong>`;
+    return entry.saleId
+      ? `<button class="cash-entry ${cashBalanceClass(entry.amount)}" data-cash-sale="${entry.saleId}">${content}</button>`
+      : `<div class="cash-entry ${cashBalanceClass(entry.amount)}">${content}</div>`;
   }
 
   function detailBlock(title, rows) {
