@@ -406,7 +406,8 @@
         <div class="order-card-actions">
           ${archived
             ? `<button class="row-action" data-sale-action="restore" data-id="${sale.id}" title="Restaurar" aria-label="Restaurar pedido ${U.escapeHtml(sale.codigo)}">↶</button>`
-            : `${mobileFlowButton(sale)}
+            : `${mobilePreviousFlowButton(sale)}
+              ${mobileFlowButton(sale)}
               <button class="order-menu-button" data-sale-action="menu" data-id="${sale.id}" aria-label="Acciones de ${U.escapeHtml(sale.codigo)}" title="Pago, envío o problema">⋮</button>`}
         </div>
       </article>`;
@@ -608,6 +609,17 @@
         title="Marcar como entregado" aria-label="Marcar ${U.escapeHtml(sale.codigo)} como entregado">→</button>`;
     }
     return "";
+  }
+
+  function mobilePreviousFlowButton(sale) {
+    const previous = {
+      "Por despachar": "Producción",
+      "Despachado": "Por despachar",
+      "Entregado": "Despachado"
+    }[sale.estadoPedido];
+    if (!previous) return "";
+    return `<button class="order-flow-button order-flow-back" data-quick-status="${previous}" data-id="${sale.id}"
+      title="Regresar a ${previous}" aria-label="Regresar ${U.escapeHtml(sale.codigo)} a ${previous}">←</button>`;
   }
 
   async function openSaleForm(sale = null) {
@@ -1289,60 +1301,53 @@
     const sale = state.sales.find((item) => item.id === id);
     if (!sale) return;
     els.detailTitle.textContent = `${sale.codigo} · ${sale.cliente}`;
-    const relatedMovements = state.movements.filter((movement) =>
-      (movement.allocations || []).some((allocation) => allocation.saleId === sale.id)
-    );
     const problems = U.saleProblems(sale);
     const payments = salePaymentTimeline(sale);
     const mapUrl = safeHttpUrl(sale.enlaceMaps);
     const shippingRecipient = sale.destinatarioEnvio || sale.cliente || "—";
     const shippingPhone = sale.telefonoEnvio || sale.telefono || "—";
     els.detailBody.innerHTML = `
-      <div class="detail-summary-strip">
-        <span><small>Venta</small><strong>${U.currency(sale.ventaTotal)}</strong></span>
-        <span><small>Cobrado</small><strong>${U.currency(sale.cobradoTotal)}</strong></span>
-        <span><small>Por cobrar</small><strong class="${sale.porCobrar > 0 ? "money-warning" : "money-positive"}">${U.currency(sale.porCobrar)}</strong></span>
-        <span><small>Utilidad</small><strong class="${sale.utilidad < 0 ? "money-danger" : "money-positive"}">${U.currency(sale.utilidad)}</strong></span>
-      </div>
-      <div class="detail-simple-grid">
+      <div class="detail-simple-stack">
         ${detailBlock("Pedido", [
-          ["Fecha", U.formatDate(sale.fecha)], ["Estado", sale.estadoPedido],
-          ["Cliente", sale.cliente], ["Teléfono", sale.telefono || "—"],
-          ["Producto", `${sale.cantidad}× ${sale.producto} · ${U.productDescription(sale)}`],
-          ["Canal", `${sale.canal || "—"} · ${sale.origen || "—"}`]
+          ["Fecha de venta", U.formatDate(sale.fecha)], ["Estado", sale.estadoPedido],
+          ["Cliente", sale.cliente], ["Código de producto", sale.producto || sale.sku || "—"],
+          ["Agencia", sale.agencia || "—"]
         ])}
-        <section class="detail-block detail-shipping">
-          <h3>Envío</h3>
-          <dl class="detail-list">
-            <div><dt>Destinatario</dt><dd>${U.escapeHtml(shippingRecipient)}</dd></div>
-            <div><dt>Teléfono</dt><dd>${U.escapeHtml(shippingPhone)}</dd></div>
-            <div><dt>DNI</dt><dd>${U.escapeHtml(sale.dniEnvio || "—")}</dd></div>
-            <div><dt>Agencia</dt><dd>${U.escapeHtml(sale.agencia || "—")}</dd></div>
-            <div class="detail-wide-row"><dt>Dirección o sede</dt><dd>${U.escapeHtml(sale.direccionEnvio || "—")}</dd></div>
-            <div><dt>Google Maps</dt><dd>${mapUrl ? `<a href="${U.escapeHtml(mapUrl)}" target="_blank" rel="noopener">Abrir mapa ↗</a>` : "—"}</dd></div>
-            <div><dt>Envío / recojo</dt><dd>${U.currency(sale.costoEnvio)} / ${U.currency(sale.costoRecojo)}</dd></div>
-            <div><dt>Pagado por</dt><dd>${U.escapeHtml(sale.pagadorLogistica || "—")}</dd></div>
-            <div><dt>Seguimiento</dt><dd>${U.escapeHtml(sale.codigoSeguimiento || "—")}</dd></div>
-            <div><dt>Despacho / entrega</dt><dd>${U.formatDate(sale.fechaDespacho)} / ${U.formatDate(sale.fechaEntrega)}</dd></div>
-          </dl>
+        <section class="detail-block detail-notes-visible">
+          <h3>Notas</h3>
+          <p>${U.escapeHtml(sale.observaciones || "Sin notas.")}</p>
         </section>
-        <section class="detail-block detail-payments">
-          <div class="detail-section-heading">
-            <h3>Pagos</h3>
-            <span>${payments.length} registrado${payments.length === 1 ? "" : "s"}</span>
+        <details class="detail-disclosure">
+          <summary><span>Envío</span><small>${hasShipping(sale) ? sale.agencia || "Registrado" : "Sin registrar"}</small></summary>
+          <div class="detail-disclosure-body">
+            <dl class="detail-list">
+              <div><dt>Agencia</dt><dd>${U.escapeHtml(sale.agencia || "—")}</dd></div>
+              <div><dt>Destinatario</dt><dd>${U.escapeHtml(shippingRecipient)}</dd></div>
+              <div><dt>Teléfono</dt><dd>${U.escapeHtml(shippingPhone)}</dd></div>
+              <div><dt>DNI</dt><dd>${U.escapeHtml(sale.dniEnvio || "—")}</dd></div>
+              <div class="detail-wide-row"><dt>Dirección o sede</dt><dd>${U.escapeHtml(sale.direccionEnvio || "—")}</dd></div>
+              <div><dt>Enlace</dt><dd>${mapUrl ? `<a href="${U.escapeHtml(mapUrl)}" target="_blank" rel="noopener">Abrir enlace ↗</a>` : "—"}</dd></div>
+              <div><dt>Costo de envío / recojo</dt><dd>${U.currency(sale.costoEnvio)} / ${U.currency(sale.costoRecojo)}</dd></div>
+              <div><dt>Pagado por</dt><dd>${U.escapeHtml(sale.pagadorLogistica || "—")}</dd></div>
+            </dl>
           </div>
-          <div class="payment-detail-table" role="table" aria-label="Pagos del pedido">
-            <div class="payment-detail-head" role="row">
-              <span>Pago</span><span>Monto</span><span>Recibido por</span>
+        </details>
+        <details class="detail-disclosure">
+          <summary><span>Pagos</span><small>${payments.length} registrado${payments.length === 1 ? "" : "s"}</small></summary>
+          <div class="detail-disclosure-body">
+            <div class="payment-detail-table" role="table" aria-label="Pagos del pedido">
+              <div class="payment-detail-head" role="row">
+                <span>Pago</span><span>Monto</span><span>Recibido por</span>
+              </div>
+              ${payments.length ? payments.map((payment) => `
+                <div class="payment-detail-row" role="row">
+                  <span><strong>${U.escapeHtml(payment.label)}</strong><small>${U.formatDate(payment.fecha)}</small></span>
+                  <strong>${U.currency(payment.monto)}</strong>
+                  <span>${U.escapeHtml(payment.cuenta || "—")}</span>
+                </div>`).join("") : `<div class="payment-detail-empty">Todavía no se registraron pagos.</div>`}
             </div>
-            ${payments.length ? payments.map((payment) => `
-              <div class="payment-detail-row" role="row">
-                <span><strong>${U.escapeHtml(payment.label)}</strong><small>${U.formatDate(payment.fecha)}</small></span>
-                <strong>${U.currency(payment.monto)}</strong>
-                <span>${U.escapeHtml(payment.cuenta || "—")}</span>
-              </div>`).join("") : `<div class="payment-detail-empty">Todavía no se registraron pagos.</div>`}
           </div>
-        </section>
+        </details>
         <details class="detail-disclosure">
           <summary><span>Costos y utilidad</span><small>${U.currency(sale.costoTotal)} de costo total</small></summary>
           <div class="detail-disclosure-body">
@@ -1361,29 +1366,13 @@
           </div>
         </details>
         <details class="detail-disclosure">
-          <summary><span>Problemas y notas</span><small>${problems.length ? `${problems.length} problema${problems.length === 1 ? "" : "s"}` : "Sin problemas"}</small></summary>
+          <summary><span>Problemas</span><small>${problems.length ? `${problems.length} problema${problems.length === 1 ? "" : "s"}` : "Sin problemas"}</small></summary>
           <div class="detail-disclosure-body">
             ${problems.length ? `<div class="history-list">${problems.map((problem) => `
               <div class="history-item">
                 <span><strong>${U.escapeHtml(problem.tipo || "Problema")}</strong><small>${U.escapeHtml(problem.nota || "Sin nota")}</small></span>
                 <strong class="${problem.costo > 0 ? "money-danger" : ""}">${U.currency(problem.costo)}</strong>
               </div>`).join("")}</div>` : `<p class="metric-meta">Este pedido no tiene problemas registrados.</p>`}
-            <p class="detail-note"><strong>Observaciones:</strong> ${U.escapeHtml(sale.observaciones || "Sin observaciones.")}</p>
-          </div>
-        </details>
-        <details class="detail-disclosure">
-          <summary><span>Liquidaciones e historial</span><small>${relatedMovements.length} movimiento${relatedMovements.length === 1 ? "" : "s"}</small></summary>
-          <div class="detail-disclosure-body">
-            <div class="obligation-grid">
-              ${obligationBox("Gonzalo devuelve", sale.gonzaloDebeDevolver)}
-              ${obligationBox("Alberto devuelve", sale.albertoDebeDevolver)}
-              ${obligationBox("DINSIDES deposita", sale.dinsidesDebeDepositar)}
-              ${obligationBox("Termal paga DINSIDES", sale.termalDebePagarDinsides)}
-            </div>
-            ${relatedMovements.length ? `<div class="history-list detail-movement-list">${relatedMovements.map((movement) => {
-              const allocation = movement.allocations.find((item) => item.saleId === sale.id);
-              return `<div class="history-item"><span>${movementLabel(movement.type)}<small> · ${U.formatDate(movement.date)} ${U.escapeHtml(movement.note || "")}</small></span><strong>${U.currency(allocation.amount)}</strong></div>`;
-            }).join("")}</div>` : ""}
           </div>
         </details>
       </div>`;
@@ -1588,8 +1577,29 @@
   async function quickStatus(id, status) {
     const sale = state.sales.find((item) => item.id === id);
     if (!sale) return;
+    const stages = ["Producción", "Por despachar", "Despachado", "Entregado"];
+    const currentIndex = stages.indexOf(sale.estadoPedido);
+    const targetIndex = stages.indexOf(status);
+    const goingBack = currentIndex >= 0 && targetIndex >= 0 && targetIndex < currentIndex;
+    const confirmed = await confirmDialog(
+      goingBack ? "Regresar etapa del pedido" : "Avanzar etapa del pedido",
+      `${sale.codigo} · ${sale.cliente} pasará de “${sale.estadoPedido}” a “${status}”. ¿Confirmas el cambio?`,
+      goingBack ? "Sí, regresar" : "Sí, avanzar",
+      false
+    );
+    if (!confirmed) return;
     const updated = { ...sale, estadoPedido: status };
     if (status === "Entregado" && !updated.fechaEntrega) updated.fechaEntrega = U.today();
+    if (status !== "Entregado" && sale.estadoPedido === "Entregado") updated.fechaEntrega = "";
+    if (status === "Por despachar" && sale.estadoPedido === "Despachado") {
+      updated.fechaDespacho = "";
+      updated.codigoSeguimiento = "";
+    }
+    if (status === "Producción") {
+      updated.fechaDespacho = "";
+      updated.codigoSeguimiento = "";
+      updated.fechaEntrega = "";
+    }
     try {
       const saved = await API.request("updateSale", { sale: updated });
       upsertSale(saved);

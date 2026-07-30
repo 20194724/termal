@@ -543,8 +543,10 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
   text-overflow: ellipsis; white-space: nowrap;
 }
 .detail-simple-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 11px; }
+.detail-simple-stack { display: grid; gap: 10px; }
 .detail-block { padding: 15px; border: 1px solid var(--line); border-radius: 11px; background: #fcfdfd; }
 .detail-block h3 { margin: 0 0 12px; color: var(--primary); font-size: 11px; letter-spacing: .07em; text-transform: uppercase; }
+.detail-notes-visible p { margin: 0; color: #475467; font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
 .detail-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin: 0; }
 .detail-list div { min-width: 0; }
 .detail-list dt { color: var(--muted); font-size: 9px; }
@@ -730,7 +732,7 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
   }
   .order-mobile-card.archived-card { opacity: .68; }
   .order-card-main {
-    display: block; width: 100%; padding: 10px 82px 10px 11px; border: 0;
+    display: block; width: 100%; padding: 10px 113px 10px 11px; border: 0;
     color: inherit; background: transparent; text-align: left;
   }
   .order-card-main:hover { background: rgba(110,16,61,.018); }
@@ -779,6 +781,12 @@ kbd { padding: 2px 5px; border: 1px solid #d0d5dd; border-bottom-width: 2px; bor
     background: #fff7fb; font-size: 16px; font-weight: 900;
   }
   .order-flow-button:hover { color: white; background: var(--primary); }
+  .order-flow-button.order-flow-back {
+    border-color: #d0d5dd; color: #667085; background: rgba(255,255,255,.92);
+  }
+  .order-flow-button.order-flow-back:hover {
+    border-color: #dca9c2; color: var(--primary); background: var(--primary-soft);
+  }
   .sales-results-card .table-footer {
     margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; background: white;
   }
