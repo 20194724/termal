@@ -181,27 +181,25 @@
     const totals = summarize(sales);
     const allOutstanding = obligations(active);
     const countProblems = active.filter((sale) => U.saleProblems(sale).length > 0).length;
+    const receivable = active.filter((sale) => U.number(sale.porCobrar) > 0);
+    const receivableAmount = U.money(receivable.reduce((sum, sale) => sum + U.number(sale.porCobrar), 0));
     const operationCounts = {
       production: active.filter((sale) => sale.estadoPedido === "Producción").length,
       ready: active.filter((sale) => sale.estadoPedido === "Por despachar").length,
       route: active.filter((sale) => sale.estadoPedido === "Despachado").length,
       problems: countProblems
     };
+    const nextProduction = nextOperationalSale(active, "Producción");
+    const nextReady = nextOperationalSale(active, "Por despachar");
+    const nextDelivery = active
+      .filter((sale) =>
+        sale.estadoPedido !== "Entregado" &&
+        sale.estadoPedido !== "Cancelado" &&
+        U.dateInput(sale.fechaAcordadaEntrega) >= U.today()
+      )
+      .sort(compareOperationalDates)[0] || null;
 
     els.mainContent.innerHTML = `
-      <section class="dashboard-hero">
-        <div>
-          <p class="eyebrow">RESUMEN DEL NEGOCIO</p>
-          <h2>El pulso de Termal</h2>
-          <p>${dashboardPeriodLabel(range)} · ${totals.orders} pedido${totals.orders === 1 ? "" : "s"} registrado${totals.orders === 1 ? "" : "s"}.</p>
-        </div>
-        <div class="dashboard-hero-result">
-          <span>Utilidad del periodo</span>
-          <strong class="${totals.profit < 0 ? "negative" : ""}">${U.currency(totals.profit)}</strong>
-          <small>Margen ${percent(totals.profit, totals.sales)}%</small>
-        </div>
-      </section>
-
       <div class="period-bar">
         <div class="dashboard-period-controls">
           <div class="segmented" aria-label="Periodo del dashboard">
@@ -225,7 +223,23 @@
           </div>` : `<span class="dashboard-period-caption">${dashboardPeriodLabel(range)}</span>`}
       </div>
 
-      <div class="metric-grid">
+      <div class="dashboard-section-head">
+        <div><p class="eyebrow">AHORA</p><h2>Prioridades</h2></div>
+        <span>Accesos directos a Pedidos</span>
+      </div>
+      <div class="priority-grid" aria-label="Prioridades operativas">
+        ${priorityItem("production", "Por producir", operationCounts.production, "Taller")}
+        ${priorityItem("ready", "Por despachar", operationCounts.ready, "Preparar salida")}
+        ${priorityItem("route", "En ruta", operationCounts.route, "Seguimiento")}
+        ${priorityItem("problems", "Con problemas", operationCounts.problems, "Revisar")}
+        ${priorityItem("receivable", "Por cobrar", receivable.length, receivableAmount ? U.currency(receivableAmount) : "Todo cobrado", "receivable")}
+      </div>
+
+      <div class="dashboard-section-head metrics-heading">
+        <div><p class="eyebrow">PERIODO</p><h2>Métricas</h2></div>
+        <span>${dashboardPeriodLabel(range)}</span>
+      </div>
+      <div class="metric-grid dashboard-metrics">
         ${metric("Ventas", U.currency(totals.sales), "◎", `${totals.orders} pedidos`, "")}
         ${metric("Cobrado", U.currency(totals.collected), "✓", `${percent(totals.collected, totals.sales)}% de las ventas`, "blue")}
         ${metric("Por cobrar", U.currency(totals.pending), "◷", totals.pending ? "Requiere seguimiento" : "Todo al día", "warning")}
@@ -234,16 +248,21 @@
         ${metric("Ticket promedio", U.currency(totals.ticket), "◈", "Por pedido", "")}
       </div>
 
-      <div class="operation-grid" aria-label="Resumen operativo">
-        ${operationItem("production", "En producción", operationCounts.production, "Ver taller")}
-        ${operationItem("ready", "Por despachar", operationCounts.ready, "Preparar salida")}
-        ${operationItem("route", "En ruta", operationCounts.route, "Dar seguimiento")}
-        ${operationItem("problems", "Con problemas", operationCounts.problems, "Revisar incidencias")}
-      </div>
+      <section class="card next-actions-card">
+        <div class="card-title">
+          <div><p class="eyebrow">SIGUIENTE</p><h3>Próximas acciones</h3></div>
+          <span class="metric-meta">Toca un pedido para abrirlo</span>
+        </div>
+        <div class="next-actions-list">
+          ${nextActionItem("Producir primero", nextProduction)}
+          ${nextActionItem("Próximo despacho", nextReady)}
+          ${nextActionItem("Próxima entrega", nextDelivery, true)}
+        </div>
+      </section>
 
       <div class="dashboard-main">
         <section class="card chart-card">
-          <div class="card-title"><h3>Evolución de ventas y utilidad</h3><span class="metric-meta">${sales.length} pedidos en el periodo</span></div>
+          <div class="card-title"><div><p class="eyebrow">TENDENCIA</p><h3>Ventas y utilidad</h3></div><span class="metric-meta">${sales.length} pedidos</span></div>
           <canvas id="salesChart" aria-label="Gráfico de líneas de ventas y utilidad"></canvas>
         </section>
         <section class="card liquidation-card">
@@ -2018,8 +2037,37 @@
     return `<div class="metric-card ${style}"><div class="metric-label">${label}<span class="metric-icon">${icon}</span></div><div class="metric-value">${value}</div><div class="metric-meta">${meta}</div></div>`;
   }
 
-  function operationItem(type, label, value, meta) {
-    return `<button class="card operation-item" data-operation="${type}"><span><strong>${value}</strong><span>${label}</span></span><span>${meta} →</span></button>`;
+  function priorityItem(type, label, count, meta, style = "") {
+    return `<button class="priority-item priority-${type} ${style}" data-operation="${type}">
+      <span class="priority-label">${label}</span>
+      <strong>${count}</strong>
+      <small>${meta}</small>
+    </button>`;
+  }
+
+  function compareOperationalDates(a, b) {
+    const aDate = U.dateInput(a.fechaAcordadaEntrega) || "9999-12-31";
+    const bDate = U.dateInput(b.fechaAcordadaEntrega) || "9999-12-31";
+    return aDate.localeCompare(bDate) || String(a.fecha).localeCompare(String(b.fecha));
+  }
+
+  function nextOperationalSale(sales, status) {
+    return sales.filter((sale) => sale.estadoPedido === status).sort(compareOperationalDates)[0] || null;
+  }
+
+  function nextActionItem(label, sale, delivery = false) {
+    if (!sale) {
+      return `<div class="next-action-item empty"><span class="next-action-label">${label}</span><span><strong>Sin pedidos pendientes</strong></span><em>—</em></div>`;
+    }
+    const status = agreedDeliveryStatus(sale);
+    const meta = delivery
+      ? status.label
+      : sale.fechaAcordadaEntrega ? U.formatDate(sale.fechaAcordadaEntrega) : "Sin fecha acordada";
+    return `<button class="next-action-item" data-sale-action="view" data-id="${sale.id}">
+      <span class="next-action-label">${label}</span>
+      <span><strong>#${U.escapeHtml(sale.codigo)} · ${U.escapeHtml(sale.cliente)}</strong><small>${U.escapeHtml(sale.producto || sale.sku || "Sin código")}</small></span>
+      <em>${U.escapeHtml(meta)}</em>
+    </button>`;
   }
 
   function periodButton(value, label) {

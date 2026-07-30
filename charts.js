@@ -6,7 +6,7 @@
     const ratio = Math.max(1, window.devicePixelRatio || 1);
     const rect = canvas.getBoundingClientRect();
     const width = Math.max(260, rect.width);
-    const height = Math.max(180, rect.height);
+    const height = Math.max(150, rect.height);
     canvas.width = width * ratio;
     canvas.height = height * ratio;
     const ctx = canvas.getContext("2d");

@@ -84,8 +84,11 @@ Usa una venta de S/ 119.90.
 ## Dashboard y filtros
 
 - [ ] Cambia entre Hoy, Esta semana, Histórico, un mes de la lista y Rango personalizado.
+- [ ] Las prioridades Por producir, Por despachar, En ruta y Por cobrar abren Pedidos con el filtro correcto; Problemas abre sus incidencias.
+- [ ] El Dashboard no muestra una tarjeta de Atrasados.
 - [ ] Las métricas coinciden con las ventas del periodo.
 - [ ] La gráfica de Ventas y Utilidad usa líneas y cambia junto con las métricas para cada filtro.
+- [ ] En móvil la gráfica es compacta y las próximas acciones permiten abrir cada pedido.
 - [ ] Histórico incluye todos los pedidos; el selector mensual permite revisar por lo menos los últimos 24 meses.
 - [ ] Haz clic en una liquidación y revisa los pedidos que componen el total.
 - [ ] Busca por código, cliente y producto.
