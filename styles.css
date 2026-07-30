@@ -710,6 +710,31 @@ button.cash-entry:hover { border-color: #dca9c2; background: #fffafd; }
 .cash-detail-total strong { font-size: 16px; }
 .cash-history-disclosure { margin-top: 14px; }
 .cash-empty { margin: 0; padding: 17px; color: var(--muted); font-size: 10px; text-align: center; }
+.cash-movement-preview {
+  display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1px; overflow: hidden;
+  margin-top: 15px; border: 1px solid var(--line); border-radius: 11px; background: var(--line);
+}
+.cash-movement-preview > div { padding: 11px; background: #fcfafb; }
+.cash-movement-preview span { display: block; color: var(--muted); font-size: 8px; font-weight: 700; }
+.cash-movement-preview strong { display: block; margin-top: 4px; font-size: 13px; }
+.cash-movement-preview > div:nth-child(2) strong { color: var(--primary); }
+.cash-movement-preview small {
+  grid-column: 1 / -1; padding: 8px 11px; color: var(--muted); background: white;
+  font-size: 8px; line-height: 1.4;
+}
+.cash-history-filters {
+  display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px;
+  padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft);
+}
+.cash-history-results { display: flex; justify-content: flex-end; margin: 10px 1px 7px; color: var(--muted); font-size: 9px; }
+.cash-history-list { display: grid; gap: 7px; }
+.cash-history-row { padding: 11px; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.cash-history-row-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cash-history-row-head span { color: var(--muted); font-size: 8px; }
+.cash-history-row-head strong { font-size: 11px; }
+.cash-history-row h3 { margin: 6px 0 3px; color: #344054; font-size: 11px; }
+.cash-history-row p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.4; }
+.cash-history-row > small { display: block; margin-top: 6px; color: var(--primary); font-size: 8px; font-weight: 700; }
 
 .toast-region { position: fixed; right: 20px; top: 104px; z-index: 100; display: grid; gap: 8px; width: min(370px, calc(100vw - 32px)); }
 .toast {
@@ -946,6 +971,8 @@ button.cash-entry:hover { border-color: #dca9c2; background: #fffafd; }
   .cash-legend > div { padding: 8px 2px; border-right: 0; border-bottom: 1px solid var(--line); }
   .cash-entry { grid-template-columns: 24px minmax(0,1fr) auto; padding: 8px; }
   .cash-entry-copy small { white-space: normal; }
+  .cash-history-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .cash-movement-preview strong { font-size: 11px; }
   .page-head { align-items: stretch; flex-direction: column; }
   .page-actions .btn { flex: 1; }
   .toolbar { align-items: stretch; flex-direction: column; }

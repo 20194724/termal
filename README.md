@@ -263,17 +263,19 @@ Caja interna reúne en un solo saldo lo que Gonzalo, Alberto y DINSIDES mantiene
 
 Pulsa una persona para revisar cómo se forma su saldo. El desglose separa cobros recibidos, envíos o recojos pagados y liquidaciones aplicadas, siempre con el pedido y cliente relacionados.
 
-### Registrar una devolución a la mancomunada
+### Registrar un movimiento de Caja
 
-1. Abre **Caja interna** y haz clic en **Registrar devolución**.
-2. También puedes abrir la tarjeta de Gonzalo o Alberto y registrar desde su desglose.
-3. Ingresa el monto y la fecha.
-4. Añade una observación si deseas.
-5. Confirma.
+1. Abre **Caja interna** y haz clic en **Registrar movimiento**.
+2. Elige la persona y si devuelve dinero a Termal, recibe un reembolso o pagó un gasto personal.
+3. Ingresa monto, fecha y concepto.
+4. Opcionalmente relaciona un pedido, cliente, método de pago y observación.
+5. Revisa el saldo anterior, el efecto firmado y el saldo nuevo antes de confirmar.
 
-El monto se aplica a las obligaciones más antiguas. Si no cubre todo, queda una liquidación parcial. La hoja `Movimientos` conserva cada aplicación.
+El movimiento queda guardado en el historial de Caja y actualiza el saldo neto de la persona.
 
 Los saldos de Gonzalo y Alberto son netos. Si una persona pagó un envío con su dinero y todavía no recibió dinero del pedido, su tarjeta puede mostrar un número negativo. Por ejemplo, **Gonzalo debe devolver −S/ 12.00** significa que Termal le debe S/ 12.00 a Gonzalo.
+
+> Nota de desarrollo: el registro bidireccional está habilitado en el modo demostración de esta rama. Antes de conectarlo a los datos reales se debe recuperar y actualizar `google-apps-script/Code.gs`; la versión publicada no se modifica durante este rediseño.
 
 ## Actualizar el backend después de cambiar `Code.gs`
 

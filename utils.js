@@ -187,11 +187,33 @@
     return 0;
   }
 
-  function cashBalances(sales = []) {
-    return ["Gonzalo", "Alberto", "DINSIDES"].map((person) => ({
+  function cashMovementPerson(movement) {
+    const normalized = normalizeText(movement?.persona);
+    if (normalized === "gonzalo") return "Gonzalo";
+    if (normalized === "alberto") return "Alberto";
+    if (normalized === "dinsides") return "DINSIDES";
+    return "";
+  }
+
+  function cashMovementSignedAmount(movement) {
+    if (movement?.signedAmount !== undefined) return money(movement.signedAmount);
+    const amount = money(movement?.amount);
+    return movement?.naturaleza === "TERMAL_TO_PERSON" ? amount : -amount;
+  }
+
+  function cashBalances(sales = [], movements = []) {
+    const balances = ["Gonzalo", "Alberto", "DINSIDES"].map((person) => ({
       person,
       balance: money(sales.reduce((sum, sale) => sum + cashSaleBalance(sale, person), 0))
     }));
+    movements
+      .filter((movement) => movement?.affectsCash === true || number(movement?.schemaVersion) >= 2)
+      .forEach((movement) => {
+        const person = cashMovementPerson(movement);
+        const target = balances.find((item) => item.person === person);
+        if (target) target.balance = money(target.balance + cashMovementSignedAmount(movement));
+      });
+    return balances;
   }
 
   function calculateSale(input) {
@@ -363,7 +385,8 @@
   globalThis.TermalUtils = {
     number, money, currency, dateInput, formatDate, today, uid, escapeHtml,
     normalizeText, daysSince, productBaseCost, buildSku, productDescription,
-    saleProblems, salePayments, cashSaleBalance, cashBalances, calculateSale, validateSale,
+    saleProblems, salePayments, cashSaleBalance, cashMovementPerson, cashMovementSignedAmount,
+    cashBalances, calculateSale, validateSale,
     periodRange, inRange, download
   };
 })();

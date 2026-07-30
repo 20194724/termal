@@ -29,6 +29,7 @@
     shippingSaleId: "",
     problemSaleId: "",
     actionSaleId: "",
+    cashHistoryFilters: { person: "", type: "", start: "", end: "" },
     confirmAction: null,
     syncTimer: null
   };
@@ -78,6 +79,7 @@
       }
     });
     els.movementForm.addEventListener("submit", submitMovement);
+    els.movementForm.addEventListener("input", updateMovementPreview);
     els.paymentForm.addEventListener("submit", submitPayment);
     els.paymentForm.addEventListener("input", updatePaymentPreview);
     els.shippingForm.addEventListener("submit", submitShipping);
@@ -87,9 +89,8 @@
     els.problemForm.addEventListener("change", handleProblemDialogChange);
     els.problemForm.addEventListener("input", updateProblemDialogTotal);
     els.orderActionsBody.addEventListener("click", handleOrderActionClick);
-    els.movementForm.addEventListener("change", (event) => {
-      if (event.target.name === "type") updateMovementPerson(event.target.value);
-    });
+    els.movementForm.addEventListener("change", handleMovementChange);
+    els.detailBody.addEventListener("change", handleDetailBodyChange);
     els.dispatchForm.addEventListener("submit", submitDispatch);
     els.confirmCancel.addEventListener("click", () => closeDialog("confirmDialog"));
     els.confirmAccept.addEventListener("click", runConfirmedAction);
@@ -178,7 +179,7 @@
     const range = dashboardRange();
     const sales = active.filter((sale) => U.inRange(sale.fecha, range));
     const totals = summarize(sales);
-    const cashBalances = U.cashBalances(active);
+    const cashBalances = U.cashBalances(active, state.movements);
     const channels = groupDashboardSales(sales, "canal").sort((a, b) => b.sales - a.sales);
     const products = groupDashboardSales(sales, "tipoProducto").sort((a, b) => b.profit - a.profit);
     const designs = groupDashboardSales(sales, "disenoProducto").sort((a, b) =>
@@ -270,7 +271,7 @@
 
   function renderCash() {
     const active = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido !== "Cancelado");
-    const balances = U.cashBalances(active);
+    const balances = U.cashBalances(active, state.movements);
     const receivable = U.money(balances.reduce((sum, item) => sum + Math.max(0, item.balance), 0));
     const reimbursable = U.money(balances.reduce((sum, item) => sum + Math.abs(Math.min(0, item.balance)), 0));
 
@@ -283,7 +284,7 @@
         </div>
         <div class="page-actions">
           <button class="btn btn-secondary btn-sm" data-action="movement-history">Historial</button>
-          <button class="btn btn-primary btn-sm" data-action="new-return">Registrar devolución</button>
+          <button class="btn btn-primary btn-sm" data-action="new-movement">Registrar movimiento</button>
         </div>
       </div>
 
@@ -1399,10 +1400,10 @@
 
   function openCashDetail(person) {
     const active = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido !== "Cancelado");
-    const balance = U.cashBalances(active).find((item) => item.person === person)?.balance || 0;
+    const balance = U.cashBalances(active, state.movements).find((item) => item.person === person)?.balance || 0;
     const entries = cashBreakdownEntries(person, active);
     const history = cashHistoryEntries(person);
-    const registerType = legacyMovementType(person, balance);
+    const defaultMovementType = balance < 0 ? "TERMAL_TO_PERSON" : "PERSON_TO_TERMAL";
     const pendingCount = new Set(entries.filter((entry) => entry.saleId).map((entry) => entry.saleId)).size;
 
     els.detailEyebrow.textContent = "CAJA INTERNA";
@@ -1430,84 +1431,115 @@
       </details>`;
     els.detailFooter.innerHTML = `
       <button class="btn btn-secondary" data-close-detail>Cerrar</button>
-      ${registerType ? `<button class="btn btn-primary" data-register-type="${registerType}">${balance < 0 ? "Registrar reembolso" : person === "DINSIDES" ? "Registrar depósito" : "Registrar devolución"}</button>` : ""}`;
+      ${Math.abs(balance) >= 0.01 ? `<button class="btn btn-primary" data-register-person="${U.escapeHtml(person)}" data-register-movement="${defaultMovementType}">Registrar movimiento</button>` : ""}`;
     els.detailFooter.querySelector("[data-close-detail]").addEventListener("click", () => closeDialog("detailDialog"));
     els.detailBody.querySelectorAll("[data-cash-sale]").forEach((button) => button.addEventListener("click", () => {
       closeDialog("detailDialog");
       openDetail(button.dataset.cashSale);
     }));
-    els.detailFooter.querySelector("[data-register-type]")?.addEventListener("click", (event) => {
+    els.detailFooter.querySelector("[data-register-person]")?.addEventListener("click", (event) => {
       closeDialog("detailDialog");
-      openMovement(event.currentTarget.dataset.registerType);
+      openMovement(event.currentTarget.dataset.registerPerson, event.currentTarget.dataset.registerMovement);
     });
     els.detailDialog.showModal();
   }
 
-  function openMovement(type = "GONZALO_RETURN") {
-    const definitions = {
-      GONZALO_RETURN: ["Devolución de Gonzalo", "Gonzalo transfiere a la mancomunada"],
-      ALBERTO_RETURN: ["Devolución de Alberto", "Alberto transfiere a la mancomunada"],
-      DINSIDES_DEPOSIT: ["Depósito de DINSIDES", "DINSIDES depositó a la mancomunada"],
-      TERMAL_PAY_DINSIDES: ["Pago a DINSIDES", "Termal pagó una deuda de envíos"]
-    };
-    const total = pendingForType(type);
-    const isPersonReturn = type === "GONZALO_RETURN" || type === "ALBERTO_RETURN";
-    els.movementTitle.textContent = isPersonReturn ? "Registrar devolución a mancomunada" : definitions[type][0];
+  function openMovement(person = "Gonzalo", type = "PERSON_TO_TERMAL") {
+    const active = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido !== "Cancelado");
+    const balance = cashCurrentBalance(person);
+    const amount = Math.abs(balance) >= 0.01 ? Math.abs(balance).toFixed(2) : "";
+    const sales = [...active].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+    els.movementTitle.textContent = "Registrar movimiento";
     els.movementBody.innerHTML = `
-      <p class="metric-meta">${definitions[type][1]}. El pago se aplicará primero a los pedidos pendientes más antiguos y admite montos parciales.</p>
-      ${isPersonReturn
-        ? fieldSelect("Persona", "type", [
-            { nombre: "GONZALO_RETURN", etiqueta: "Gonzalo" },
-            { nombre: "ALBERTO_RETURN", etiqueta: "Alberto" }
-          ], type, false).replace(">GONZALO_RETURN<", ">Gonzalo<").replace(">ALBERTO_RETURN<", ">Alberto<")
-        : `<input type="hidden" name="type" value="${type}">`}
+      <p class="metric-meta">Registra una transferencia o gasto que cambie el saldo de una persona. No repitas gastos que ya estén incluidos al agregar un envío.</p>
       <div class="form-grid" style="margin-top:15px">
-        ${fieldInput("Monto transferido (S/)", "amount", "number", total ? total.toFixed(2) : "", true, "", `min="0.01" max="${total.toFixed(2)}" step="0.01"`)}
+        <label class="field required"><span>Persona</span><select name="persona" required>
+          ${["Gonzalo", "Alberto", "DINSIDES"].map((value) => `<option value="${value}" ${value === person ? "selected" : ""}>${value}</option>`).join("")}
+        </select></label>
+        <label class="field required field-span-2"><span>Tipo de movimiento</span><select name="naturaleza" required>
+          <option value="PERSON_TO_TERMAL" ${type === "PERSON_TO_TERMAL" ? "selected" : ""}>Persona devuelve dinero a Termal</option>
+          <option value="TERMAL_TO_PERSON" ${type === "TERMAL_TO_PERSON" ? "selected" : ""}>Termal devuelve dinero a la persona</option>
+          <option value="PERSON_EXPENSE" ${type === "PERSON_EXPENSE" ? "selected" : ""}>Persona paga un gasto con dinero personal</option>
+        </select></label>
+        ${fieldInput("Monto (S/)", "amount", "number", amount, true, "", `min="0.01" step="0.01"`)}
         ${fieldInput("Fecha", "date", "date", U.today(), true)}
-        <label class="field field-span-2"><span>Observación opcional</span><textarea name="note" placeholder="Ej. Transferencia Yape o número de operación"></textarea></label>
+        <label class="field field-span-2"><span>Pedido relacionado · opcional</span><select name="saleId">
+          <option value="">Sin pedido relacionado</option>
+          ${sales.map((sale) => `<option value="${sale.id}">#${U.escapeHtml(sale.codigo)} · ${U.escapeHtml(sale.cliente)}</option>`).join("")}
+        </select></label>
+        ${fieldInput("Cliente · opcional", "cliente", "text", "", false, "Nombre del cliente")}
+        ${fieldInput("Concepto", "concepto", "text", defaultMovementConcept(type), true, "Ej. Envío, devolución o compra")}
+        <label class="field"><span>Método de pago · opcional</span><select name="metodoPago">
+          <option value="">No especificado</option>
+          ${(state.lists.metodosPago || []).map((value) => `<option value="${U.escapeHtml(value)}">${U.escapeHtml(value)}</option>`).join("")}
+        </select></label>
+        <label class="field field-span-2"><span>Observación · opcional</span><textarea name="note" placeholder="Ej. Yape, número de operación o detalle del gasto"></textarea></label>
       </div>
-      <div class="form-warning">Pendiente disponible: <strong data-movement-pending>${U.currency(total)}</strong>. No podrás registrar un monto mayor.</div>
+      <div class="cash-movement-preview">
+        <div><span>Saldo anterior</span><strong data-cash-before>${U.currency(balance)}</strong></div>
+        <div><span>Movimiento</span><strong data-cash-effect>${signedCurrency(cashMovementEffect(type, amount))}</strong></div>
+        <div><span>Saldo nuevo</span><strong data-cash-after>${U.currency(U.money(balance + cashMovementEffect(type, amount)))}</strong></div>
+        <small data-cash-effect-copy>${U.escapeHtml(movementEffectCopy(person, type))}</small>
+      </div>
       <p class="form-error" id="movementError"></p>`;
     els.movementDialog.showModal();
     setTimeout(() => els.movementForm.querySelector('[name="amount"]')?.focus(), 50);
   }
 
-  function updateMovementPerson(type) {
-    const total = pendingForType(type);
-    const amount = els.movementForm.querySelector('[name="amount"]');
-    if (amount) {
-      amount.max = total.toFixed(2);
-      amount.value = total ? total.toFixed(2) : "";
+  function handleMovementChange(event) {
+    if (event.target.name === "saleId") {
+      const sale = state.sales.find((item) => item.id === event.target.value);
+      if (sale) {
+        const client = els.movementForm.querySelector('[name="cliente"]');
+        if (client && !client.value) client.value = sale.cliente || "";
+      }
     }
-    const pending = els.movementForm.querySelector("[data-movement-pending]");
-    if (pending) pending.textContent = U.currency(total);
-    const descriptions = {
-      GONZALO_RETURN: "Gonzalo transfiere a la mancomunada",
-      ALBERTO_RETURN: "Alberto transfiere a la mancomunada"
-    };
-    const intro = els.movementBody.querySelector(".metric-meta");
-    if (intro) intro.textContent = `${descriptions[type]}. El pago se aplicará primero a los pedidos pendientes más antiguos y admite montos parciales.`;
+    if (event.target.name === "naturaleza") {
+      const concept = els.movementForm.querySelector('[name="concepto"]');
+      if (concept) concept.value = defaultMovementConcept(event.target.value);
+    }
+    updateMovementPreview();
+  }
+
+  function updateMovementPreview() {
+    if (!els.movementDialog.open) return;
+    const person = els.movementForm.querySelector('[name="persona"]')?.value || "Gonzalo";
+    const type = els.movementForm.querySelector('[name="naturaleza"]')?.value || "PERSON_TO_TERMAL";
+    const amount = U.number(els.movementForm.querySelector('[name="amount"]')?.value);
+    const before = cashCurrentBalance(person);
+    const effect = cashMovementEffect(type, amount);
+    const after = U.money(before + effect);
+    const beforeLabel = els.movementForm.querySelector("[data-cash-before]");
+    const effectLabel = els.movementForm.querySelector("[data-cash-effect]");
+    const afterLabel = els.movementForm.querySelector("[data-cash-after]");
+    const copy = els.movementForm.querySelector("[data-cash-effect-copy]");
+    if (beforeLabel) beforeLabel.textContent = U.currency(before);
+    if (effectLabel) effectLabel.textContent = signedCurrency(effect);
+    if (afterLabel) afterLabel.textContent = U.currency(after);
+    if (copy) copy.textContent = movementEffectCopy(person, type);
   }
 
   async function submitMovement(event) {
     event.preventDefault();
     const movement = formToObject(els.movementForm);
     const errorBox = document.getElementById("movementError");
-    if (U.number(movement.amount) <= 0) {
-      errorBox.textContent = "Ingresa un monto mayor que cero.";
+    if (!movement.persona || !movement.naturaleza || U.number(movement.amount) <= 0 || !movement.concepto) {
+      errorBox.textContent = "Completa la persona, el tipo, el monto y el concepto.";
       return;
     }
     const button = els.movementForm.querySelector('[type="submit"]');
     setButtonLoading(button, true, "Registrando…");
     try {
-      const result = await API.request("createMovement", { movement });
-      state.sales = result.sales.map(U.calculateSale);
+      const result = await API.request("createCashMovement", { movement });
+      if (result.sales) state.sales = result.sales.map(U.calculateSale);
       state.movements.unshift(result.movement);
       closeDialog("movementDialog");
-      toast("success", "Movimiento registrado", `${U.currency(movement.amount)} aplicado a las liquidaciones más antiguas.`);
+      toast("success", "Movimiento registrado", `Nuevo saldo de ${movement.persona}: ${U.currency(result.movement.saldoPosterior)}.`);
       render();
     } catch (error) {
-      errorBox.textContent = error.message;
+      errorBox.textContent = API.isConfigured() && error.code === "UNKNOWN_ACTION"
+        ? "La nueva Caja necesita actualizar Apps Script antes de usarse con los datos reales."
+        : error.message;
     } finally {
       setButtonLoading(button, false, "Registrar movimiento");
     }
@@ -1633,7 +1665,7 @@
       }
       if (action === "export-csv") exportCsv();
       if (action === "reset-demo") resetDemo();
-      if (action === "new-return") openMovement("GONZALO_RETURN");
+      if (action === "new-movement") openMovement();
       if (action === "movement-history") openMovementHistory();
       if (action === "open-dispatch") openDispatchDialog();
       if (action === "open-cash") navigate("caja");
@@ -1742,17 +1774,68 @@
   function openMovementHistory() {
     els.detailEyebrow.textContent = "CAJA INTERNA";
     els.detailTitle.textContent = "Historial de Caja";
-    els.detailBody.innerHTML = state.movements.length ? `
-      <div class="history-list">
-        ${state.movements.slice(0, 50).map((movement) => `
-          <div class="history-item">
-            <span><strong>${movementLabel(movement.type)}</strong><small> · ${U.formatDate(movement.date)} · ${(movement.allocations || []).length} pedido${(movement.allocations || []).length === 1 ? "" : "s"}${movement.note ? ` · ${U.escapeHtml(movement.note)}` : ""}</small></span>
-            <strong>${U.currency(movement.amount)}</strong>
-          </div>`).join("")}
-      </div>` : emptyState("≋", "Aún no hay movimientos", "Las transferencias, devoluciones y reembolsos aparecerán aquí.");
     els.detailFooter.innerHTML = `<button class="btn btn-secondary" data-close-detail>Cerrar</button>`;
     els.detailFooter.querySelector("[data-close-detail]").addEventListener("click", () => closeDialog("detailDialog"));
+    renderMovementHistoryBody();
     els.detailDialog.showModal();
+  }
+
+  function renderMovementHistoryBody() {
+    const filters = state.cashHistoryFilters;
+    const types = [...new Set(state.movements.map((movement) => movement.naturaleza || movement.type).filter(Boolean))];
+    const filtered = state.movements.filter((movement) => {
+      if (filters.person && movementPerson(movement) !== filters.person) return false;
+      if (filters.type && (movement.naturaleza || movement.type) !== filters.type) return false;
+      if (filters.start && U.dateInput(movement.date) < filters.start) return false;
+      if (filters.end && U.dateInput(movement.date) > filters.end) return false;
+      return true;
+    });
+    els.detailBody.innerHTML = `
+      <div class="cash-history-filters">
+        <label class="field"><span>Persona</span><select data-cash-history-filter="person">
+          <option value="">Todas</option>
+          ${["Gonzalo", "Alberto", "DINSIDES"].map((person) => `<option value="${person}" ${filters.person === person ? "selected" : ""}>${person}</option>`).join("")}
+        </select></label>
+        <label class="field"><span>Tipo</span><select data-cash-history-filter="type">
+          <option value="">Todos</option>
+          ${types.map((type) => `<option value="${U.escapeHtml(type)}" ${filters.type === type ? "selected" : ""}>${U.escapeHtml(movementLabel(type))}</option>`).join("")}
+        </select></label>
+        <label class="field"><span>Desde</span><input type="date" data-cash-history-filter="start" value="${U.escapeHtml(filters.start)}"></label>
+        <label class="field"><span>Hasta</span><input type="date" data-cash-history-filter="end" value="${U.escapeHtml(filters.end)}"></label>
+      </div>
+      <div class="cash-history-results"><span>${filtered.length} movimiento${filtered.length === 1 ? "" : "s"}</span></div>
+      ${filtered.length ? `<div class="cash-history-list">${filtered.slice(0, 100).map(cashHistoryRow).join("")}</div>` :
+        emptyState("≋", "Sin movimientos", state.movements.length ? "No hay resultados para estos filtros." : "Las transferencias, devoluciones y reembolsos aparecerán aquí.")}`;
+  }
+
+  function handleDetailBodyChange(event) {
+    const key = event.target.dataset.cashHistoryFilter;
+    if (!key) return;
+    state.cashHistoryFilters[key] = event.target.value;
+    renderMovementHistoryBody();
+  }
+
+  function cashHistoryRow(movement) {
+    const person = movementPerson(movement) || "Sin persona";
+    const type = movement.naturaleza || movement.type;
+    const amount = movementSignedAmount(movement);
+    const allocations = movement.allocations || [];
+    const sale = movement.saleId
+      ? state.sales.find((item) => item.id === movement.saleId)
+      : allocations.length === 1 ? state.sales.find((item) => item.id === allocations[0].saleId) : null;
+    const relatedCode = movement.codigo || sale?.codigo || "";
+    const relation = [
+      relatedCode ? `#${relatedCode}` : "",
+      movement.cliente || sale?.cliente || "",
+      movement.metodoPago || "",
+      movement.note || ""
+    ].filter(Boolean).join(" · ");
+    return `<article class="cash-history-row">
+      <div class="cash-history-row-head"><span>${U.formatDate(movement.date)} · ${U.escapeHtml(person)}</span><strong class="${amount < 0 ? "money-danger" : "money-positive"}">${signedCurrency(amount)}</strong></div>
+      <h3>${U.escapeHtml(movement.concepto || movementLabel(type))}</h3>
+      <p>${U.escapeHtml(relation || "Sin observación")}</p>
+      <small>${movement.saldoPosterior !== undefined ? `Saldo posterior: ${U.currency(movement.saldoPosterior)}` : "Movimiento histórico compatible"}</small>
+    </article>`;
   }
 
   async function restoreSale(sale) {
@@ -1955,17 +2038,6 @@
     return totals;
   }
 
-  function pendingForType(type) {
-    const map = {
-      GONZALO_RETURN: "gonzaloDebeDevolver",
-      ALBERTO_RETURN: "albertoDebeDevolver",
-      DINSIDES_DEPOSIT: "dinsidesDebeDepositar",
-      TERMAL_PAY_DINSIDES: "termalDebePagarDinsides"
-    };
-    return U.money(state.sales.filter((sale) => sale.active !== false)
-      .reduce((sum, sale) => sum + U.number(sale[map[type]]), 0));
-  }
-
   function formToObject(form) {
     const data = {};
     new FormData(form).forEach((value, key) => { data[key] = String(value).trim(); });
@@ -2073,6 +2145,37 @@
     return "cash-zero";
   }
 
+  function cashCurrentBalance(person) {
+    const active = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido !== "Cancelado");
+    return U.cashBalances(active, state.movements).find((item) => item.person === person)?.balance || 0;
+  }
+
+  function cashMovementEffect(type, amount) {
+    const value = U.money(amount);
+    return type === "TERMAL_TO_PERSON" ? value : -value;
+  }
+
+  function defaultMovementConcept(type) {
+    return {
+      PERSON_TO_TERMAL: "Devolución a Termal",
+      TERMAL_TO_PERSON: "Reembolso de Termal",
+      PERSON_EXPENSE: "Gasto pagado con dinero personal"
+    }[type] || "Movimiento de Caja";
+  }
+
+  function movementEffectCopy(person, type) {
+    return {
+      PERSON_TO_TERMAL: `${person} entrega dinero a Termal y su saldo disminuye.`,
+      TERMAL_TO_PERSON: `Termal devuelve dinero a ${person} y su saldo aumenta.`,
+      PERSON_EXPENSE: `${person} paga un gasto personal y su saldo disminuye.`
+    }[type] || "El movimiento actualizará el saldo.";
+  }
+
+  function signedCurrency(value) {
+    const amount = U.money(value);
+    return `${amount > 0 ? "+" : ""}${U.currency(amount)}`;
+  }
+
   function cashBalanceMessage(person, balance) {
     if (balance > 0.009) return `${person} debe entregar este dinero a Termal.`;
     if (balance < -0.009) return `Termal debe devolver ${U.currency(Math.abs(balance))} a ${person}.`;
@@ -2098,9 +2201,16 @@
   }
 
   function cashBreakdownEntries(person, sales) {
-    return sales
+    const saleEntries = sales
       .filter((sale) => Math.abs(U.cashSaleBalance(sale, person)) >= 0.01)
-      .flatMap((sale) => cashSaleEntries(person, sale))
+      .flatMap((sale) => cashSaleEntries(person, sale));
+    const movementEntries = state.movements
+      .filter((movement) =>
+        (movement.affectsCash === true || U.number(movement.schemaVersion) >= 2) &&
+        movementPerson(movement) === person
+      )
+      .map(cashMovementEntry);
+    return [...saleEntries, ...movementEntries]
       .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.code).localeCompare(String(a.code)));
   }
 
@@ -2174,20 +2284,22 @@
           : null;
         return {
           amount: movementSignedAmount(movement),
-          concept: movementLabel(movement.type),
-          detail: movement.note || `${allocations.length} pedido${allocations.length === 1 ? "" : "s"} aplicado${allocations.length === 1 ? "" : "s"}`,
+          concept: movement.concepto || movementLabel(movement.naturaleza || movement.type),
+          detail: [movement.metodoPago, movement.note].filter(Boolean).join(" · ") ||
+            `${allocations.length} pedido${allocations.length === 1 ? "" : "s"} aplicado${allocations.length === 1 ? "" : "s"}`,
           saleId: firstSale?.id || "",
-          code: firstSale?.codigo || allocations.map((item) => item.codigo).filter(Boolean).join(", "),
-          client: firstSale?.cliente || "",
+          code: movement.codigo || firstSale?.codigo || allocations.map((item) => item.codigo).filter(Boolean).join(", "),
+          client: movement.cliente || firstSale?.cliente || "",
           date: movement.date,
-          person
+          person,
+          balanceAfter: movement.saldoPosterior
         };
       })
       .sort((a, b) => String(b.date).localeCompare(String(a.date)));
   }
 
   function movementPerson(movement) {
-    if (movement.persona) return String(movement.persona);
+    if (movement.persona) return U.cashMovementPerson(movement);
     return {
       GONZALO_RETURN: "Gonzalo",
       ALBERTO_RETURN: "Alberto",
@@ -2197,18 +2309,27 @@
   }
 
   function movementSignedAmount(movement) {
-    if (movement.signedAmount !== undefined) return U.number(movement.signedAmount);
+    if (movement.affectsCash === true || U.number(movement.schemaVersion) >= 2) {
+      return U.cashMovementSignedAmount(movement);
+    }
     return movement.type === "TERMAL_PAY_DINSIDES"
       ? U.number(movement.amount)
       : -U.number(movement.amount);
   }
 
-  function legacyMovementType(person, balance) {
-    if (balance > 0.009) {
-      return { Gonzalo: "GONZALO_RETURN", Alberto: "ALBERTO_RETURN", DINSIDES: "DINSIDES_DEPOSIT" }[person] || "";
-    }
-    if (balance < -0.009 && person === "DINSIDES") return "TERMAL_PAY_DINSIDES";
-    return "";
+  function cashMovementEntry(movement) {
+    const sale = state.sales.find((item) => item.id === movement.saleId);
+    return {
+      amount: movementSignedAmount(movement),
+      concept: movement.concepto || movementLabel(movement.naturaleza || movement.type),
+      detail: [movement.metodoPago, movement.note].filter(Boolean).join(" · "),
+      saleId: sale?.id || "",
+      code: movement.codigo || sale?.codigo || "",
+      client: movement.cliente || sale?.cliente || "",
+      date: movement.date,
+      person: movementPerson(movement),
+      balanceAfter: movement.saldoPosterior
+    };
   }
 
   function cashEntryMarkup(entry) {
@@ -2216,7 +2337,8 @@
       entry.code ? `#${entry.code}` : "",
       entry.client || "",
       entry.date ? U.formatDate(entry.date) : "",
-      entry.detail || ""
+      entry.detail || "",
+      entry.balanceAfter !== undefined ? `Saldo ${U.currency(entry.balanceAfter)}` : ""
     ].filter(Boolean).join(" · ");
     const content = `
       <span class="cash-entry-sign">${entry.amount >= 0 ? "+" : "−"}</span>
@@ -2262,7 +2384,10 @@
   function movementLabel(type) {
     return {
       GONZALO_RETURN: "Devolución de Gonzalo", ALBERTO_RETURN: "Devolución de Alberto",
-      DINSIDES_DEPOSIT: "Depósito de DINSIDES", TERMAL_PAY_DINSIDES: "Pago a DINSIDES"
+      DINSIDES_DEPOSIT: "Depósito de DINSIDES", TERMAL_PAY_DINSIDES: "Pago a DINSIDES",
+      PERSON_TO_TERMAL: "Persona devuelve a Termal",
+      TERMAL_TO_PERSON: "Termal devuelve a la persona",
+      PERSON_EXPENSE: "Gasto pagado por la persona"
     }[type] || "Movimiento";
   }
 

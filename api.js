@@ -147,6 +147,11 @@
       writeDemo(db);
       return { movement, sales: db.sales.map(U.calculateSale) };
     }
+    if (action === "createCashMovement") {
+      const movement = applyCashMovement(db, payload.movement);
+      writeDemo(db);
+      return { movement, sales: db.sales.map(U.calculateSale) };
+    }
     if (action === "createDispatch") {
       const ids = payload.dispatch.saleIds || [];
       const found = db.sales.filter((sale) => ids.includes(sale.id) && sale.active !== false);
@@ -203,6 +208,49 @@
     const movement = {
       id: U.uid("mov"), type: raw.type, amount, date: raw.date || U.today(),
       note: String(raw.note || "").trim(), allocations, createdAt: new Date().toISOString()
+    };
+    db.movements.unshift(movement);
+    return movement;
+  }
+
+  function applyCashMovement(db, raw) {
+    if (!Array.isArray(db.movements)) db.movements = [];
+    const amount = U.money(raw.amount);
+    const persona = U.cashMovementPerson({ persona: raw.persona });
+    const validTypes = ["PERSON_TO_TERMAL", "TERMAL_TO_PERSON", "PERSON_EXPENSE"];
+    if (!persona) throw userError("VALIDATION_ERROR", "Selecciona una persona válida.");
+    if (!validTypes.includes(raw.naturaleza)) throw userError("VALIDATION_ERROR", "Selecciona un tipo de movimiento válido.");
+    if (amount <= 0) throw userError("VALIDATION_ERROR", "El monto debe ser mayor que cero.");
+    if (!String(raw.concepto || "").trim()) throw userError("VALIDATION_ERROR", "Ingresa el concepto del movimiento.");
+
+    const sale = raw.saleId
+      ? db.sales.find((item) => item.id === raw.saleId && item.active !== false)
+      : null;
+    if (raw.saleId && !sale) throw userError("NOT_FOUND", "No encontramos el pedido relacionado.");
+
+    const previous = U.cashBalances(db.sales.map(U.calculateSale), db.movements || [])
+      .find((item) => item.person === persona)?.balance || 0;
+    const signedAmount = raw.naturaleza === "TERMAL_TO_PERSON" ? amount : -amount;
+    const movement = {
+      id: U.uid("mov"),
+      type: raw.naturaleza,
+      naturaleza: raw.naturaleza,
+      persona,
+      amount,
+      signedAmount,
+      date: raw.date || U.today(),
+      concepto: String(raw.concepto || "").trim(),
+      saleId: sale?.id || "",
+      codigo: sale?.codigo || "",
+      cliente: String(raw.cliente || sale?.cliente || "").trim(),
+      metodoPago: String(raw.metodoPago || "").trim(),
+      note: String(raw.note || "").trim(),
+      saldoAnterior: U.money(previous),
+      saldoPosterior: U.money(previous + signedAmount),
+      affectsCash: true,
+      schemaVersion: 2,
+      allocations: sale ? [{ saleId: sale.id, codigo: sale.codigo, amount }] : [],
+      createdAt: new Date().toISOString()
     };
     db.movements.unshift(movement);
     return movement;

@@ -64,10 +64,14 @@ Usa una venta de S/ 119.90.
 - [ ] **Saldo negativo:** sin dinero recibido por Gonzalo, registra un envío de S/ 12 pagado por Gonzalo → Gonzalo debe devolver −S/ 12.00 y la tarjeta indica que es un saldo a su favor.
 - [ ] **Saldo único:** Caja muestra solo una tarjeta por Gonzalo, Alberto y DINSIDES; no aparece una fila general “Termal debe pagar”.
 - [ ] **Desglose exacto:** abre cada persona y confirma que la suma de cobros, gastos y liquidaciones coincide con el saldo mostrado.
-- [ ] **Devolución parcial:** registra menos que el total pendiente. El pedido muestra liquidación Parcial.
-- [ ] **Aplicación por antigüedad:** registra una devolución que cubra varios pedidos. Confirma en el detalle que se aplicó primero al más antiguo.
-- [ ] **Monto excesivo:** intenta registrar más que el pendiente. Debe rechazarlo.
-- [ ] **Historial:** confirma que el movimiento aparece en el detalle y en la hoja `Movimientos`.
+- [ ] **Persona devuelve a Termal:** registra S/ 12 de Gonzalo hacia Termal. El saldo de Gonzalo disminuye exactamente S/ 12.
+- [ ] **Termal reembolsa a una persona:** con Gonzalo en −S/ 12, registra un reembolso de Termal por S/ 12. El saldo nuevo queda en S/ 0.
+- [ ] **Gasto con dinero personal:** con Gonzalo en S/ 0, registra un gasto personal de S/ 12. El saldo nuevo queda en −S/ 12.
+- [ ] **Vista previa:** cambia persona, tipo y monto. Saldo anterior, movimiento con signo y saldo nuevo se actualizan antes de guardar.
+- [ ] **Pedido opcional:** selecciona un pedido. El cliente se completa automáticamente y se conservan concepto, método de pago y observación.
+- [ ] **Historial firmado:** confirma que cada fila muestre fecha, persona, importe con signo, saldo posterior y, si corresponde, pedido, cliente y observación.
+- [ ] **Filtros de historial:** combina persona, tipo y rango de fechas. El contador y los resultados deben coincidir.
+- [ ] **Saldo aislado:** registra un movimiento para Alberto. Solo cambia la tarjeta de Alberto.
 
 ## Producción y despachos
 
