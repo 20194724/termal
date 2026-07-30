@@ -197,7 +197,7 @@ a { color: var(--primary); }
 .metric-meta strong { color: var(--success); }
 
 .dashboard-main { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(280px,.8fr); gap: 16px; margin-bottom: 16px; }
-.operation-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 10px; margin: -6px 0 22px; }
+.operation-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin: -6px 0 22px; }
 .operation-item {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px;
   padding: 11px 13px; color: #344054; text-align: left;

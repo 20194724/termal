@@ -184,13 +184,11 @@
     const totals = summarize(sales);
     const allOutstanding = obligations(active);
     const countProblems = active.filter((sale) => U.saleProblems(sale).length > 0).length;
-    const countOverdue = active.filter(isOverdueSale).length;
     const operationCounts = {
       production: active.filter((sale) => sale.estadoPedido === "Producción").length,
       ready: active.filter((sale) => sale.estadoPedido === "Por despachar").length,
       route: active.filter((sale) => sale.estadoPedido === "Despachado").length,
-      problems: countProblems,
-      overdue: countOverdue
+      problems: countProblems
     };
 
     els.mainContent.innerHTML = `
@@ -244,7 +242,6 @@
         ${operationItem("ready", "Por despachar", operationCounts.ready, "Preparar salida")}
         ${operationItem("route", "En ruta", operationCounts.route, "Dar seguimiento")}
         ${operationItem("problems", "Con problemas", operationCounts.problems, "Revisar incidencias")}
-        ${operationItem("overdue", "Atrasados", operationCounts.overdue, operationCounts.overdue ? "Revisar fechas" : "Todo al día")}
       </div>
 
       <div class="dashboard-main">
@@ -1653,11 +1650,6 @@
     const operation = event.target.closest("[data-operation]");
     if (operation) {
       const target = operation.dataset.operation;
-      if (target === "overdue") {
-        state.salesQuickFilter = "overdue";
-        navigate("ventas");
-        return;
-      }
       if (target === "problems") {
         navigate("problemas");
         return;
