@@ -21,6 +21,9 @@
       <nav class="sidebar-nav">
         <button class="nav-link active" data-route="dashboard"><span>⌂</span> Dashboard</button>
         <button class="nav-link" data-route="ventas"><span>▤</span> Pedidos</button>
+        <button class="nav-link" data-route="empresas"><span>▦</span> Empresas</button>
+        <button class="nav-link" data-route="compras"><span>◫</span> Compras</button>
+        <button class="nav-link" data-route="marketing"><span>◎</span> Marketing</button>
         <button class="nav-link" data-route="caja"><span>↔</span> Caja interna</button>
         <button class="nav-link" data-route="problemas"><span>!</span> Problemas</button>
       </nav>
@@ -62,8 +65,21 @@
     <button class="nav-link" data-route="ventas"><span>▤</span><small>Pedidos</small></button>
     <button class="mobile-new" id="mobileNewSale" aria-label="Nueva venta">＋</button>
     <button class="nav-link" data-route="caja"><span>↔</span><small>Caja</small></button>
-    <button class="nav-link" data-route="problemas"><span>!</span><small>Problemas</small></button>
+    <button class="nav-link" id="mobileMoreButton"><span>•••</span><small>Más</small></button>
   </nav>
+
+  <dialog id="moreDialog" class="modal modal-small">
+    <div class="modal-header">
+      <div><p class="eyebrow">MÓDULOS</p><h2>Más opciones</h2></div>
+      <button type="button" class="close-button" data-close="moreDialog" aria-label="Cerrar">×</button>
+    </div>
+    <div class="modal-body module-menu">
+      <button class="module-menu-item" data-mobile-route="empresas"><span>▦</span><strong>Empresas</strong><small>Trabajos B2B</small></button>
+      <button class="module-menu-item" data-mobile-route="compras"><span>◫</span><strong>Compras</strong><small>Proveedores y costos</small></button>
+      <button class="module-menu-item" data-mobile-route="marketing"><span>◎</span><strong>Marketing</strong><small>Gastos en soles y dólares</small></button>
+      <button class="module-menu-item" data-mobile-route="problemas"><span>!</span><strong>Problemas</strong><small>Incidencias de pedidos</small></button>
+    </div>
+  </dialog>
 
   <dialog id="saleDialog" class="modal modal-wide">
     <form id="saleForm" method="dialog" novalidate>
@@ -158,6 +174,34 @@
     </form>
   </dialog>
 
+  <dialog id="businessDialog" class="modal modal-wide">
+    <form id="businessForm" method="dialog" novalidate>
+      <div class="modal-header sticky">
+        <div><p class="eyebrow" id="businessEyebrow">REGISTRO</p><h2 id="businessTitle">Nuevo registro</h2></div>
+        <button type="button" class="close-button" data-close="businessDialog" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body" id="businessBody"></div>
+      <div class="modal-footer sticky">
+        <button type="button" class="btn btn-secondary" data-close="businessDialog">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="saveBusinessButton">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="businessPaymentDialog" class="modal modal-small">
+    <form id="businessPaymentForm" method="dialog" novalidate>
+      <div class="modal-header">
+        <div><p class="eyebrow">MOVIMIENTO</p><h2 id="businessPaymentTitle">Agregar pago</h2></div>
+        <button type="button" class="close-button" data-close="businessPaymentDialog" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body" id="businessPaymentBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="businessPaymentDialog">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Agregar pago</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="dispatchDialog" class="modal">
     <form id="dispatchForm" method="dialog">
       <div class="modal-header">
@@ -199,6 +243,7 @@
   <script src="config.js"></script>
   <script src="utils.js"></script>
   <script src="demo-data.js"></script>
+  <script src="business.js"></script>
   <script src="api.js"></script>
   <script src="charts.js"></script>
   <script src="app.js"></script>

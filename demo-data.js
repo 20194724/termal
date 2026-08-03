@@ -58,6 +58,8 @@
     problemas: ["NO", "Error de producción / grabado", "Cliente no estaba", "Redireccionamiento", "Cambio de producto", "Otro"],
     modalidadesLogisticas: ["Entrega y cobro", "Recojo sin cobro", "Envío a provincia", "Recojo en tienda"],
     pagadoresLogistica: ["Gonzalo", "Alberto", "Mancomunada", "DINSIDES"],
+    categoriasCompras: ["Termos", "Cajas", "Stickers", "Grabado láser", "Grabado UV", "Materiales", "Maquinaria y activos", "Otros"],
+    categoriasMarketing: ["Meta ads", "Shopify", "Sesión fotos/videos", "Canje", "Dominio y web", "Diseño y contenido", "Otros"],
     tiposProductos: productTypes,
     disenos: designs,
     coloresPorProducto: {
@@ -118,6 +120,34 @@
     { fecha: ago(15), codigo: "1", cliente: "Luis Aguilar", tipoProducto: "Termo 1200 ml", colorProducto: "Blanco", disenoProducto: "One Piece Nakamas", ventaTotal: 119.9, adelanto: 119.9, cuentaAdelanto: "Mancomunada", agencia: "Olva", estadoPedido: "Entregado", fechaDespacho: ago(14), fechaEntrega: ago(12), canal: "Shopify WEB", origen: "Meta Ads", grabadoLaser: true, costoEnvio: 16, modalidadPago: "Shopify Web" }
   ];
 
+  const demoB2B = [{
+    id: "demo_b2b_1", active: true, codigo: "B2B-001", fecha: ago(30),
+    fechaEntregaAcordada: ago(20), fechaEntregaReal: ago(20), empresa: "SERVICIOS INEFABLES SAC",
+    ruc: "20613516540", contacto: "+51 959 091 356", aplicaIgv: true, facturaEmitida: true,
+    items: [
+      { id: "b2b_i1", descripcion: "Termo 890 ml crema, grabado láser de una cara", cantidad: 9, precioUnitario: 75, costoTermoUnitario: 19, costoGrabadoUnitario: 20, costoCajaUnitario: 2.2 },
+      { id: "b2b_i2", descripcion: "Termo 890 ml crema, logo en dos caras", cantidad: 33, precioUnitario: 50, costoTermoUnitario: 19, costoGrabadoUnitario: 8, costoCajaUnitario: 2.2 },
+      { id: "b2b_i3", descripcion: "Termo 890 ml negro, logo en dos caras", cantidad: 68, precioUnitario: 50, costoTermoUnitario: 19, costoGrabadoUnitario: 8, costoCajaUnitario: 2.2 }
+    ],
+    gastoAdminVentas: 0, gastoLogistico: 129.5, otrosCostos: 0,
+    pagos: [{ id: "b2b_p1", fecha: ago(20), monto: 6755.5, cuenta: "Termal", metodo: "Transferencia", nota: "Pago completo" }],
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+  }];
+
+  const demoPurchases = [{
+    id: "demo_purchase_1", active: true, codigo: "COMP-001", fecha: ago(25), categoria: "Termos",
+    producto: "Termos 890 ml", proveedor: "BRILLANTE IMPORTACIONES", detalle: "50 termos negros",
+    cantidad: 50, costoUnitario: 19, incluyeIgv: true,
+    pagos: [{ id: "purchase_p1", fecha: ago(25), monto: 950, cuenta: "Termal", metodo: "Transferencia", nota: "Pago completo" }],
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+  }];
+
+  const demoMarketing = [{
+    id: "demo_marketing_1", active: true, fecha: ago(7), categoria: "Meta ads", dolares: 7.18,
+    tipoCambio: 3.46, detalle: "Campaña del mes", pagadoPor: "Gonzalo",
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+  }];
+
   function makeSale(data, index) {
     return U.calculateSale({
       ...defaults,
@@ -134,6 +164,9 @@
       return {
         sales: rawSales.map(makeSale),
         movements: [],
+        b2b: demoB2B,
+        purchases: demoPurchases,
+        marketing: demoMarketing,
         lists: JSON.parse(JSON.stringify(baseLists)),
         updatedAt: new Date().toISOString()
       };

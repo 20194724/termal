@@ -30,7 +30,7 @@ SPREADSHEET_ID: "USAR_HOJA_VINCULADA",
 2. Reemplaza `USAR_HOJA_VINCULADA` por el ID de Google Sheets.
 3. El ID es el texto que aparece entre `/d/` y `/edit` en la dirección de la hoja.
 
-No cambies los nombres `Ventas`, `Listas` o `Movimientos` después de preparar la instalación.
+No cambies los nombres `Ventas`, `Listas`, `Movimientos`, `Empresas`, `Compras` o `Marketing` después de preparar la instalación.
 
 ## Preparación inicial
 
@@ -67,11 +67,12 @@ Cada vez que cambies `Code.gs`:
 
 1. Guarda el proyecto.
 2. Para la versión 2, ejecuta una vez `prepararActualizacionV2`. Esta función solo añade las columnas faltantes al final de `Ventas` y `Movimientos`; no cambia la clave ni borra pedidos.
-3. Haz clic en **Implementar → Administrar implementaciones**.
-4. Haz clic en el lápiz de la implementación activa.
-5. En **Versión**, elige **Nueva versión**.
-6. Añade una descripción breve.
-7. Haz clic en **Implementar**.
+3. Para la versión 3, ejecuta una vez `prepararActualizacionV3`. Esta función crea de forma aditiva `Empresas`, `Compras` y `Marketing`, y amplía las categorías de `Listas`. No borra ni modifica los pedidos actuales.
+4. Haz clic en **Implementar → Administrar implementaciones**.
+5. Haz clic en el lápiz de la implementación activa.
+6. En **Versión**, elige **Nueva versión**.
+7. Añade una descripción breve.
+8. Haz clic en **Implementar**.
 
 Si editas el código pero no creas una nueva versión, la aplicación seguirá usando el código anterior.
 
@@ -140,7 +141,7 @@ La implementación se ejecuta con los permisos del propietario. Por eso no debes
 
 ## Funciones disponibles para la aplicación
 
-- `getAll`: ventas, movimientos y listas.
+- `getAll`: ventas, movimientos, Empresas, Compras, Marketing y listas.
 - `getSale`: una venta por ID.
 - `createSale`: crear.
 - `updateSale`: editar.
@@ -151,5 +152,10 @@ La implementación se ejecuta con los permisos del propietario. Por eso no debes
 - `nextCode`: siguiente código disponible.
 - `createMovement`: devolución, depósito o pago con aplicación parcial.
 - `createDispatch`: salida o recojo para varios pedidos.
+- `saveB2B`: crear o editar un trabajo con una o varias líneas de producto.
+- `savePurchase`: crear o editar una compra.
+- `saveMarketing`: crear o editar un gasto de marketing.
+- `addBusinessPayment`: añadir pagos parciales a Empresas o Compras.
+- `archiveBusinessRecord`: archivar un registro de los nuevos módulos.
 
 Las escrituras usan `LockService`, IDs únicos y control de versión. Todos los cálculos financieros se repiten en el backend antes de guardar.

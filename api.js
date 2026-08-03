@@ -2,10 +2,17 @@
   "use strict";
   const U = globalThis.TermalUtils;
   const D = globalThis.TermalDemo;
+  const B = globalThis.TermalBusiness || {
+    calculateB2B: (value) => value, calculatePurchase: (value) => value, calculateMarketing: (value) => value,
+    validateB2B: () => [], validatePurchase: () => [], validateMarketing: () => [], arrayValue: (value) => Array.isArray(value) ? value : []
+  };
   const API_PLACEHOLDER = "PEGAR_AQUI_URL_DE_GOOGLE_APPS_SCRIPT";
 
   function isConfigured() {
-    return Boolean(CONFIG.API_URL && !CONFIG.API_URL.includes(API_PLACEHOLDER));
+    const forcedDemo = globalThis.URLSearchParams
+      ? new globalThis.URLSearchParams(globalThis.location?.search || "").get("demo") === "1"
+      : false;
+    return !forcedDemo && Boolean(CONFIG.API_URL && !CONFIG.API_URL.includes(API_PLACEHOLDER));
   }
 
   function readDemo() {
@@ -13,6 +20,9 @@
       const saved = localStorage.getItem(CONFIG.DEMO_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
+        parsed.b2b = parsed.b2b || [];
+        parsed.purchases = parsed.purchases || [];
+        parsed.marketing = parsed.marketing || [];
         if (parsed.lists) {
           parsed.lists.modalidadesPago = [...D.lists.modalidadesPago];
           parsed.lists.problemas = [...new Set([...D.lists.problemas, ...(parsed.lists.problemas || [])])];
@@ -21,6 +31,9 @@
       }
     } catch (_) { /* Se regenera abajo. */ }
     const seeded = D.seed();
+    seeded.b2b = seeded.b2b || [];
+    seeded.purchases = seeded.purchases || [];
+    seeded.marketing = seeded.marketing || [];
     localStorage.setItem(CONFIG.DEMO_STORAGE_KEY, JSON.stringify(seeded));
     return seeded;
   }
@@ -89,6 +102,9 @@
     if (action === "getAll") return {
       sales: db.sales.map(U.calculateSale),
       movements: db.movements || [],
+      b2b: (db.b2b || []).map(B.calculateB2B),
+      purchases: (db.purchases || []).map(B.calculatePurchase),
+      marketing: (db.marketing || []).map(B.calculateMarketing),
       lists: db.lists,
       updatedAt: db.updatedAt
     };
@@ -166,6 +182,58 @@
       });
       writeDemo(db);
       return { batchId, sales: found };
+    }
+    if (action === "saveB2B") {
+      const record = B.calculateB2B(payload.record || {});
+      const errors = B.validateB2B(record);
+      if (errors.length) throw userError("VALIDATION_ERROR", errors.join(" "));
+      applyDemoAttachment(record, "b2b", payload.attachment);
+      saveDemoRecord(db, "b2b", record, "B2B");
+      rememberDemoCategory(db, "b2b", "");
+      writeDemo(db);
+      return B.calculateB2B(record);
+    }
+    if (action === "savePurchase") {
+      const record = B.calculatePurchase(payload.record || {});
+      const errors = B.validatePurchase(record);
+      if (errors.length) throw userError("VALIDATION_ERROR", errors.join(" "));
+      applyDemoAttachment(record, "purchase", payload.attachment);
+      saveDemoRecord(db, "purchases", record, "COMP");
+      rememberDemoCategory(db, "purchase", record.categoria);
+      writeDemo(db);
+      return B.calculatePurchase(record);
+    }
+    if (action === "saveMarketing") {
+      const record = B.calculateMarketing(payload.record || {});
+      const errors = B.validateMarketing(record);
+      if (errors.length) throw userError("VALIDATION_ERROR", errors.join(" "));
+      saveDemoRecord(db, "marketing", record, "MKT");
+      rememberDemoCategory(db, "marketing", record.categoria);
+      writeDemo(db);
+      return B.calculateMarketing(record);
+    }
+    if (action === "addBusinessPayment") {
+      const collection = payload.type === "purchase" ? "purchases" : "b2b";
+      const calculator = collection === "purchases" ? B.calculatePurchase : B.calculateB2B;
+      const record = (db[collection] || []).find((item) => item.id === payload.id && item.active !== false);
+      if (!record) throw userError("NOT_FOUND", "No encontramos el registro.");
+      record.pagos = B.arrayValue(record.pagos);
+      record.pagos.push({ ...payload.payment, id: U.uid("pago") });
+      const calculated = calculator(record);
+      const errors = collection === "purchases" ? B.validatePurchase(calculated) : B.validateB2B(calculated);
+      if (errors.length) throw userError("VALIDATION_ERROR", errors.join(" "));
+      Object.assign(record, calculated, { updatedAt: new Date().toISOString() });
+      writeDemo(db);
+      return calculator(record);
+    }
+    if (action === "archiveBusinessRecord") {
+      const collection = { b2b: "b2b", purchase: "purchases", marketing: "marketing" }[payload.type];
+      const record = collection && (db[collection] || []).find((item) => item.id === payload.id);
+      if (!record) throw userError("NOT_FOUND", "No encontramos el registro.");
+      record.active = false;
+      record.updatedAt = new Date().toISOString();
+      writeDemo(db);
+      return record;
     }
     if (action === "resetDemo") {
       const seeded = D.seed();
@@ -270,6 +338,48 @@
         db.lists.problemas.push(problem.tipo);
       }
     });
+  }
+
+  function saveDemoRecord(db, collection, record, prefix) {
+    if (!Array.isArray(db[collection])) db[collection] = [];
+    const now = new Date().toISOString();
+    const index = db[collection].findIndex((item) => item.id === record.id);
+    if (index >= 0) {
+      db[collection][index] = { ...db[collection][index], ...record, updatedAt: now };
+      Object.assign(record, db[collection][index]);
+      return;
+    }
+    const max = db[collection].reduce((value, item) => {
+      const match = String(item.codigo || "").match(/(\d+)$/);
+      return Math.max(value, match ? Number(match[1]) : 0);
+    }, 0);
+    Object.assign(record, {
+      id: U.uid(collection),
+      codigo: record.codigo || `${prefix}-${String(max + 1).padStart(3, "0")}`,
+      active: true,
+      createdAt: now,
+      updatedAt: now
+    });
+    db[collection].unshift(record);
+  }
+
+  function rememberDemoCategory(db, type, value) {
+    if (!value) return;
+    const key = type === "marketing" ? "categoriasMarketing" : "categoriasCompras";
+    db.lists[key] = db.lists[key] || [];
+    if (!db.lists[key].some((item) => U.normalizeText(item) === U.normalizeText(value))) db.lists[key].push(value);
+  }
+
+  function applyDemoAttachment(record, type, attachment) {
+    if (!attachment?.base64) return;
+    const url = `data:application/pdf;base64,${attachment.base64}`;
+    if (type === "b2b") {
+      record.cotizacionNombre = attachment.name;
+      record.cotizacionUrl = url;
+    } else {
+      record.facturaNombre = attachment.name;
+      record.facturaUrl = url;
+    }
   }
 
   globalThis.TermalAPI = {

@@ -1,8 +1,8 @@
 # ERP MINI TERMAL
 
-Aplicación web sencilla para registrar ventas una sola vez y obtener automáticamente el SKU, los cobros, el costo, la utilidad y el estado operativo.
+Aplicación web sencilla para controlar pedidos B2C, trabajos B2B, compras, marketing, cobros, costos, utilidad y caja interna.
 
-La navegación diaria tiene cuatro secciones: **Dashboard**, **Pedidos**, **Caja interna** y **Problemas**. Producción, Por despachar, Despachados y Entregados se gestionan mediante filtros y acciones dentro de Pedidos.
+La navegación incluye **Dashboard**, **Pedidos**, **Empresas**, **Compras**, **Marketing**, **Caja interna** y **Problemas**. Producción, Por despachar, Despachados y Entregados se gestionan mediante filtros y acciones dentro de Pedidos.
 
 No necesitas instalar programas ni contratar un servidor. La aplicación usa:
 
@@ -20,9 +20,10 @@ La validación automática de la Fase 9 se ejecuta desde la carpeta del proyecto
 node tests\phase9-smoke.cjs
 node tests\phase9-api-smoke.cjs
 node tests\google-apps-script-v2-smoke.cjs
+node tests\business-v3-smoke.cjs
 ```
 
-Los tres comandos deben terminar con `"OK"`. Consulta `FASE_9_RESULTADOS.md` para ver la matriz responsive y las comprobaciones realizadas.
+Los cuatro comandos deben terminar con `"OK"`. Para probar la rama de desarrollo sin tocar Google Sheets, abre la aplicación con `?demo=1` al final de la URL local.
 
 ## Antes de comenzar
 

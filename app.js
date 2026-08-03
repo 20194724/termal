@@ -3,11 +3,21 @@
 
   const U = globalThis.TermalUtils;
   const API = globalThis.TermalAPI;
+  const B = globalThis.TermalBusiness || {
+    BUSINESS_ACCOUNTS: ["Termal", "Gonzalo", "Alberto"],
+    DEFAULT_PURCHASE_CATEGORIES: [], DEFAULT_MARKETING_CATEGORIES: [],
+    calculateB2B: (value) => value, calculatePurchase: (value) => value, calculateMarketing: (value) => value,
+    validateB2B: () => [], validatePurchase: () => [], validateMarketing: () => [],
+    cashMovements: () => []
+  };
 
   const state = {
     route: "dashboard",
     sales: [],
     movements: [],
+    b2b: [],
+    purchases: [],
+    marketing: [],
     lists: globalThis.TermalDemo.lists,
     updatedAt: "",
     syncing: false,
@@ -31,6 +41,10 @@
     actionSaleId: "",
     cashHistoryFilters: { person: "", type: "", start: "", end: "" },
     confirmAction: null,
+    businessSearch: { b2b: "", purchase: "", marketing: "" },
+    businessType: "",
+    businessEditingId: "",
+    businessPayment: { type: "", id: "" },
     syncTimer: null
   };
 
@@ -51,6 +65,9 @@
       "dispatchDialog", "dispatchForm", "dispatchBody", "confirmDialog", "confirmTitle",
       "confirmBody", "confirmCancel", "confirmAccept", "accessDialog", "accessForm",
       "accessError", "toastRegion", "offlineBanner"
+      , "businessDialog", "businessForm", "businessEyebrow", "businessTitle", "businessBody",
+      "saveBusinessButton", "businessPaymentDialog", "businessPaymentForm", "businessPaymentTitle",
+      "businessPaymentBody", "moreDialog", "mobileMoreButton"
     ].forEach((id) => { els[id] = document.getElementById(id); });
 
     document.querySelectorAll("[data-route]").forEach((button) => {
@@ -60,8 +77,15 @@
       button.addEventListener("click", () => closeDialog(button.dataset.close));
     });
 
-    els.newSaleButton.addEventListener("click", () => openSaleForm());
-    els.mobileNewSale.addEventListener("click", () => openSaleForm());
+    els.newSaleButton.addEventListener("click", openPrimaryForm);
+    els.mobileNewSale.addEventListener("click", openPrimaryForm);
+    els.mobileMoreButton.addEventListener("click", () => els.moreDialog.showModal());
+    els.moreDialog.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-mobile-route]");
+      if (!button) return;
+      closeDialog("moreDialog");
+      navigate(button.dataset.mobileRoute);
+    });
     els.syncButton.addEventListener("click", () => loadData({ manual: true }));
     els.helpButton.addEventListener("click", () => {
       window.open("README.md", "_blank", "noopener");
@@ -79,6 +103,11 @@
       }
     });
     els.movementForm.addEventListener("submit", submitMovement);
+    els.businessForm.addEventListener("submit", submitBusinessForm);
+    els.businessForm.addEventListener("input", handleBusinessFormInput);
+    els.businessForm.addEventListener("change", handleBusinessFormInput);
+    els.businessForm.addEventListener("click", handleBusinessFormClick);
+    els.businessPaymentForm.addEventListener("submit", submitBusinessPayment);
     els.movementForm.addEventListener("input", updateMovementPreview);
     els.paymentForm.addEventListener("submit", submitPayment);
     els.paymentForm.addEventListener("input", updatePaymentPreview);
@@ -125,6 +154,9 @@
       const changed = data.updatedAt !== state.updatedAt;
       state.sales = (data.sales || []).map(U.calculateSale);
       state.movements = data.movements || [];
+      state.b2b = (data.b2b || []).map(B.calculateB2B);
+      state.purchases = (data.purchases || []).map(B.calculatePurchase);
+      state.marketing = (data.marketing || []).map(B.calculateMarketing);
       state.lists = { ...globalThis.TermalDemo.lists, ...(data.lists || {}) };
       state.updatedAt = data.updatedAt || new Date().toISOString();
       setSyncStatus("online", `Actualizado ${formatTime(new Date())}`);
@@ -149,6 +181,9 @@
     const renderers = {
       dashboard: renderDashboard,
       ventas: renderSales,
+      empresas: renderB2B,
+      compras: renderPurchases,
+      marketing: renderMarketing,
       problemas: renderProblems,
       caja: renderCash
     };
@@ -161,8 +196,13 @@
     document.querySelectorAll("[data-route]").forEach((button) => {
       button.classList.toggle("active", button.dataset.route === route);
     });
-    const titles = { dashboard: "Dashboard", ventas: "Pedidos", problemas: "Problemas", caja: "Caja interna" };
+    els.mobileMoreButton.classList.toggle("active", ["empresas", "compras", "marketing", "problemas"].includes(route));
+    const titles = {
+      dashboard: "Dashboard", ventas: "Pedidos", empresas: "Empresas", compras: "Compras",
+      marketing: "Marketing", problemas: "Problemas", caja: "Caja interna"
+    };
     els.pageTitle.textContent = titles[route] || "ERP MINI TERMAL";
+    updatePrimaryAction();
     render();
     els.mainContent.focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -179,7 +219,17 @@
     const range = dashboardRange();
     const sales = active.filter((sale) => U.inRange(sale.fecha, range));
     const totals = summarize(sales);
-    const cashBalances = U.cashBalances(active, state.movements);
+    const b2b = state.b2b.filter((record) => record.active !== false && U.inRange(record.fechaEntregaReal || record.fechaEntregaAcordada || record.fecha, range));
+    const purchases = state.purchases.filter((record) => record.active !== false && U.inRange(record.fecha, range));
+    const marketing = state.marketing.filter((record) => record.active !== false && U.inRange(record.fecha, range));
+    const b2bTotals = summarizeB2B(b2b);
+    const purchaseSpend = U.money(purchases.reduce((sum, record) => sum + record.costoTotal, 0));
+    const marketingSpend = U.money(marketing.reduce((sum, record) => sum + record.soles, 0));
+    const combinedSales = U.money(totals.sales + b2bTotals.sales);
+    const combinedCollected = U.money(totals.collected + b2bTotals.collected);
+    const combinedPending = U.money(totals.pending + b2bTotals.pending);
+    const combinedProfit = U.money(totals.profit + b2bTotals.profit - marketingSpend);
+    const cashBalances = U.cashBalances(active, cashMovements());
     const channels = groupDashboardSales(sales, "canal").sort((a, b) => b.sales - a.sales);
     const products = groupDashboardSales(sales, "tipoProducto").sort((a, b) => b.profit - a.profit);
     const designs = groupDashboardSales(sales, "disenoProducto").sort((a, b) =>
@@ -188,6 +238,9 @@
     const bestChannel = channels[0];
     const bestProduct = products[0];
     const bestDesign = designs[0];
+    const b2bCompanies = groupBusinessRecords(b2b, "empresa", "ventaSinIgv");
+    const purchaseCategories = groupBusinessRecords(purchases, "categoria", "costoTotal");
+    const marketingCategories = groupBusinessRecords(marketing, "categoria", "soles");
 
     els.mainContent.innerHTML = `
       <div class="dashboard-filterbar">
@@ -221,12 +274,12 @@
         <span>${dashboardPeriodLabel(range)}</span>
       </div>
       <div class="metric-grid dashboard-metrics">
-        ${metric("Ventas", U.currency(totals.sales), "◎", `${totals.orders} pedidos`, "")}
-        ${metric("Cobrado", U.currency(totals.collected), "✓", `${percent(totals.collected, totals.sales)}% de las ventas`, "blue")}
-        ${metric("Por cobrar", U.currency(totals.pending), "◷", totals.pending ? "Requiere seguimiento" : "Todo al día", "warning")}
-        ${metric("Utilidad", U.currency(totals.profit), "↗", `Margen ${percent(totals.profit, totals.sales)}%`, "purple")}
-        ${metric("Pedidos", String(totals.orders), "▤", `${totals.items} unidades`, "blue")}
-        ${metric("Ticket promedio", U.currency(totals.ticket), "◈", "Por pedido", "")}
+        ${metric("Ventas totales", U.currency(combinedSales), "◎", `${totals.orders} B2C · ${b2bTotals.projects} B2B`, "")}
+        ${metric("Cobrado", U.currency(combinedCollected), "✓", `${percent(combinedCollected, combinedSales)}% de las ventas`, "blue")}
+        ${metric("Por cobrar", U.currency(combinedPending), "◷", combinedPending ? "B2C y Empresas" : "Todo al día", "warning")}
+        ${metric("Utilidad después de marketing", U.currency(combinedProfit), "↗", `Marketing ${U.currency(marketingSpend)}`, "purple")}
+        ${metric("Unidades vendidas", String(totals.items + b2bTotals.items), "▤", `${totals.items} B2C · ${b2bTotals.items} B2B`, "blue")}
+        ${metric("Compras registradas", U.currency(purchaseSpend), "◫", `${purchases.length} movimientos`, "")}
       </div>
 
       <div class="dashboard-section-head">
@@ -255,6 +308,25 @@
         </section>
       </div>
 
+      <div class="dashboard-section-head">
+        <div><p class="eyebrow">NEGOCIO COMPLETO</p><h2>Empresas, compras y marketing</h2></div>
+        <span>Información que no aparece en Pedidos</span>
+      </div>
+      <div class="analytics-grid">
+        <section class="card analytics-card">
+          <div class="analytics-card-head"><div><p class="eyebrow">EMPRESAS</p><h3>Venta B2B sin IGV por cliente</h3></div><span>${b2bTotals.projects} ${b2bTotals.projects === 1 ? "trabajo" : "trabajos"}</span></div>
+          ${analyticsList(b2bCompanies, { valueKey: "sales", meta: "count", countLabel: "trabajo" })}
+        </section>
+        <section class="card analytics-card">
+          <div class="analytics-card-head"><div><p class="eyebrow">COMPRAS</p><h3>Gasto por categoría</h3></div><span>${U.currency(purchaseSpend)}</span></div>
+          ${analyticsList(purchaseCategories, { valueKey: "sales", meta: "count", countLabel: "compra" })}
+        </section>
+        <section class="card analytics-card">
+          <div class="analytics-card-head"><div><p class="eyebrow">MARKETING</p><h3>Inversión por categoría</h3></div><span>${U.currency(marketingSpend)}</span></div>
+          ${analyticsList(marketingCategories, { valueKey: "sales", meta: "count", countLabel: "gasto" })}
+        </section>
+      </div>
+
       <section class="card cash-summary-card dashboard-cash">
         <div class="section-head">
           <div><h3>Caja interna</h3><p>Un solo saldo por persona</p></div>
@@ -271,7 +343,7 @@
 
   function renderCash() {
     const active = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido !== "Cancelado");
-    const balances = U.cashBalances(active, state.movements);
+    const balances = U.cashBalances(active, cashMovements());
     const receivable = U.money(balances.reduce((sum, item) => sum + Math.max(0, item.balance), 0));
     const reimbursable = U.money(balances.reduce((sum, item) => sum + Math.abs(Math.min(0, item.balance)), 0));
 
@@ -1402,7 +1474,7 @@
 
   function openCashDetail(person) {
     const active = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido !== "Cancelado");
-    const balance = U.cashBalances(active, state.movements).find((item) => item.person === person)?.balance || 0;
+    const balance = U.cashBalances(active, cashMovements()).find((item) => item.person === person)?.balance || 0;
     const entries = cashBreakdownEntries(person, active);
     const history = cashHistoryEntries(person);
     const defaultMovementType = balance < 0 ? "TERMAL_TO_PERSON" : "PERSON_TO_TERMAL";
@@ -1654,6 +1726,491 @@
     }
   }
 
+  function updatePrimaryAction() {
+    const actions = {
+      empresas: ["＋ Nuevo trabajo", "Nuevo trabajo B2B"],
+      compras: ["＋ Nueva compra", "Nueva compra"],
+      marketing: ["＋ Nuevo gasto", "Nuevo gasto de marketing"]
+    };
+    const [label, aria] = actions[state.route] || ["＋ Nueva venta", "Nueva venta"];
+    els.newSaleButton.textContent = label;
+    els.mobileNewSale.setAttribute("aria-label", aria);
+  }
+
+  function openPrimaryForm() {
+    if (state.route === "empresas") return openBusinessForm("b2b");
+    if (state.route === "compras") return openBusinessForm("purchase");
+    if (state.route === "marketing") return openBusinessForm("marketing");
+    return openSaleForm();
+  }
+
+  function renderB2B() {
+    const term = U.normalizeText(state.businessSearch.b2b);
+    const records = state.b2b
+      .filter((record) => record.active !== false)
+      .filter((record) => !term || U.normalizeText([record.codigo, record.empresa, record.ruc, record.contacto].join(" ")).includes(term))
+      .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+    els.mainContent.innerHTML = `
+      ${businessCommandBar("b2b", "Buscar empresa, RUC o código…", "new-b2b", "Nuevo trabajo")}
+      <section class="card table-card business-results-card">
+        ${records.length ? `
+          <div class="table-scroll business-desktop-view"><table class="business-table business-table-b2b"><thead><tr>
+            <th>Trabajo</th><th>Empresa</th><th>Entrega</th><th>Unidades</th>
+            <th>Venta</th><th>Cobrado</th><th>Por cobrar</th><th>Factura</th><th>Utilidad</th><th>Acciones</th>
+          </tr></thead><tbody>${records.map(b2bRow).join("")}</tbody></table></div>
+          <div class="business-mobile-view">${records.map(b2bCard).join("")}</div>` :
+          emptyState("▦", "Aún no hay trabajos de empresas", "Registra el primer pedido B2B.", "new-b2b", "Nuevo trabajo")}
+      </section>`;
+  }
+
+  function renderPurchases() {
+    const term = U.normalizeText(state.businessSearch.purchase);
+    const records = state.purchases
+      .filter((record) => record.active !== false)
+      .filter((record) => !term || U.normalizeText([record.producto, record.proveedor, record.categoria, record.detalle].join(" ")).includes(term))
+      .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+    const total = U.money(records.reduce((sum, record) => sum + record.costoTotal, 0));
+    const pending = U.money(records.reduce((sum, record) => sum + record.porPagar, 0));
+    els.mainContent.innerHTML = `
+      ${businessCommandBar("purchase", "Buscar producto, proveedor o detalle…", "new-purchase", "Nueva compra")}
+      <div class="business-summary-strip"><span><small>Compras registradas</small><strong>${U.currency(total)}</strong></span><span><small>Por pagar</small><strong class="${pending ? "money-warning" : ""}">${U.currency(pending)}</strong></span></div>
+      <section class="card table-card business-results-card">
+        ${records.length ? `
+          <div class="table-scroll business-desktop-view"><table class="business-table"><thead><tr>
+            <th>Fecha</th><th>Producto</th><th>Proveedor</th><th>Cantidad</th><th>Costo unit.</th>
+            <th>Total</th><th>Pagado</th><th>Por pagar</th><th>IGV</th><th>Acciones</th>
+          </tr></thead><tbody>${records.map(purchaseRow).join("")}</tbody></table></div>
+          <div class="business-mobile-view">${records.map(purchaseCard).join("")}</div>` :
+          emptyState("◫", "Aún no hay compras", "Registra la primera compra a un proveedor.", "new-purchase", "Nueva compra")}
+      </section>`;
+  }
+
+  function renderMarketing() {
+    const term = U.normalizeText(state.businessSearch.marketing);
+    const records = state.marketing
+      .filter((record) => record.active !== false)
+      .filter((record) => !term || U.normalizeText([record.categoria, record.detalle, record.pagadoPor].join(" ")).includes(term))
+      .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+    const total = U.money(records.reduce((sum, record) => sum + record.soles, 0));
+    const dollars = U.money(records.reduce((sum, record) => sum + record.dolares, 0));
+    els.mainContent.innerHTML = `
+      ${businessCommandBar("marketing", "Buscar categoría o detalle…", "new-marketing", "Nuevo gasto")}
+      <div class="business-summary-strip"><span><small>Gasto en soles</small><strong>${U.currency(total)}</strong></span><span><small>Referencia en dólares</small><strong>US$ ${dollars.toFixed(2)}</strong></span></div>
+      <section class="card table-card business-results-card">
+        ${records.length ? `
+          <div class="table-scroll business-desktop-view"><table class="business-table"><thead><tr>
+            <th>Fecha</th><th>Categoría</th><th>Soles</th><th>Dólares</th><th>Tipo de cambio</th><th>Detalle</th><th>Pagado por</th><th>Acciones</th>
+          </tr></thead><tbody>${records.map(marketingRow).join("")}</tbody></table></div>
+          <div class="business-mobile-view">${records.map(marketingCard).join("")}</div>` :
+          emptyState("◎", "Aún no hay gastos de marketing", "Registra el primer gasto.", "new-marketing", "Nuevo gasto")}
+      </section>`;
+  }
+
+  function businessCommandBar(type, placeholder, action, label) {
+    return `<div class="business-commandbar">
+      <label class="search-box"><input type="search" aria-label="${U.escapeHtml(placeholder)}" data-business-search="${type}" value="${U.escapeHtml(state.businessSearch[type])}" placeholder="${placeholder}"></label>
+    </div>`;
+  }
+
+  function businessActions(type, id, payment = false) {
+    return `<div class="row-actions compact-actions">
+      <button class="row-action" data-business-action="view" data-business-type="${type}" data-id="${id}" title="Ver detalle">○</button>
+      ${payment ? `<button class="row-action" data-business-action="payment" data-business-type="${type}" data-id="${id}" title="Agregar pago">＋</button>` : ""}
+      <button class="row-action" data-business-action="edit" data-business-type="${type}" data-id="${id}" title="Editar">✎</button>
+      <button class="order-menu-button" data-business-action="archive" data-business-type="${type}" data-id="${id}" title="Eliminar">⋮</button>
+    </div>`;
+  }
+
+  function b2bRow(record) {
+    return `<tr><td><span class="cell-primary">${U.escapeHtml(record.codigo)}</span><span class="cell-secondary">${U.formatDate(record.fecha)}</span></td>
+      <td><span class="cell-primary">${U.escapeHtml(record.empresa)}</span><span class="cell-secondary">${U.escapeHtml(record.ruc || "Sin RUC")}</span></td>
+      <td>${U.formatDate(record.fechaEntregaAcordada)}</td><td>${record.cantidadTotal}</td><td>${U.currency(record.ventaTotal)}</td>
+      <td>${U.currency(record.cobrado)}</td><td class="${record.porCobrar ? "money-warning" : ""}">${U.currency(record.porCobrar)}</td>
+      <td>${record.facturaEmitida ? `<span class="chip chip-paid">Emitida</span>` : `<span class="chip chip-ready">Pendiente</span>`}</td>
+      <td class="${record.utilidad < 0 ? "money-danger" : "money-positive"}">${U.currency(record.utilidad)}</td>
+      <td>${businessActions("b2b", record.id, true)}</td></tr>`;
+  }
+
+  function b2bCard(record) {
+    return `<article class="business-card"><div class="business-card-head"><span>${U.escapeHtml(record.codigo)}</span>${record.facturaEmitida ? `<span class="chip chip-paid">Factura</span>` : `<span class="chip chip-ready">Sin factura</span>`}${businessActions("b2b", record.id, true)}</div>
+      <h3>${U.escapeHtml(record.empresa)}</h3><p>${record.cantidadTotal} unidades · entrega ${U.formatDate(record.fechaEntregaAcordada)}</p>
+      <div class="business-card-metrics"><span><small>Venta</small><strong>${U.currency(record.ventaTotal)}</strong></span><span><small>Por cobrar</small><strong class="${record.porCobrar ? "money-warning" : ""}">${U.currency(record.porCobrar)}</strong></span><span><small>Utilidad</small><strong class="${record.utilidad < 0 ? "money-danger" : "money-positive"}">${U.currency(record.utilidad)}</strong></span></div></article>`;
+  }
+
+  function purchaseRow(record) {
+    return `<tr><td>${U.formatDate(record.fecha)}</td><td><span class="cell-primary">${U.escapeHtml(record.producto)}</span><span class="cell-secondary">${U.escapeHtml(record.categoria)}</span></td>
+      <td>${U.escapeHtml(record.proveedor)}</td><td>${record.cantidad}</td><td>${U.currency(record.costoUnitario)}</td><td>${U.currency(record.costoTotal)}</td>
+      <td>${U.currency(record.pagado)}</td><td class="${record.porPagar ? "money-warning" : ""}">${U.currency(record.porPagar)}</td>
+      <td>${record.incluyeIgv ? "Incluido" : "No"}</td><td>${businessActions("purchase", record.id, true)}</td></tr>`;
+  }
+
+  function purchaseCard(record) {
+    return `<article class="business-card"><div class="business-card-head"><span>${U.formatDate(record.fecha)}</span><span class="chip chip-production">${U.escapeHtml(record.categoria)}</span>${businessActions("purchase", record.id, true)}</div>
+      <h3>${U.escapeHtml(record.producto)}</h3><p>${U.escapeHtml(record.proveedor)} · ${record.cantidad} unidades</p>
+      <div class="business-card-metrics"><span><small>Total</small><strong>${U.currency(record.costoTotal)}</strong></span><span><small>Pagado</small><strong>${U.currency(record.pagado)}</strong></span><span><small>Por pagar</small><strong class="${record.porPagar ? "money-warning" : ""}">${U.currency(record.porPagar)}</strong></span></div></article>`;
+  }
+
+  function marketingRow(record) {
+    return `<tr><td>${U.formatDate(record.fecha)}</td><td>${U.escapeHtml(record.categoria)}</td><td>${U.currency(record.soles)}</td>
+      <td>US$ ${record.dolares.toFixed(2)}</td><td>${record.dolares ? record.tipoCambio.toFixed(4) : "—"}</td><td>${U.escapeHtml(record.detalle)}</td>
+      <td>${U.escapeHtml(record.pagadoPor)}</td><td>${businessActions("marketing", record.id)}</td></tr>`;
+  }
+
+  function marketingCard(record) {
+    return `<article class="business-card"><div class="business-card-head"><span>${U.formatDate(record.fecha)}</span><span class="chip chip-production">${U.escapeHtml(record.categoria)}</span>${businessActions("marketing", record.id)}</div>
+      <h3>${U.escapeHtml(record.detalle)}</h3><p>Pagado por ${U.escapeHtml(record.pagadoPor)}</p>
+      <div class="business-card-metrics two"><span><small>Soles</small><strong>${U.currency(record.soles)}</strong></span><span><small>Dólares</small><strong>US$ ${record.dolares.toFixed(2)}</strong></span></div></article>`;
+  }
+
+  function getBusinessRecord(type, id) {
+    const collection = type === "b2b" ? state.b2b : type === "purchase" ? state.purchases : state.marketing;
+    return collection.find((record) => record.id === id);
+  }
+
+  function openBusinessForm(type, existing = null) {
+    state.businessType = type;
+    state.businessEditingId = existing?.id || "";
+    els.businessForm.reset();
+    if (type === "b2b") renderB2BForm(existing ? B.calculateB2B(existing) : B.calculateB2B({ fecha: U.today(), aplicaIgv: true, items: [{ descripcion: "", cantidad: 1 }] }));
+    if (type === "purchase") renderPurchaseForm(existing ? B.calculatePurchase(existing) : B.calculatePurchase({ fecha: U.today(), cantidad: 1, pagos: [] }));
+    if (type === "marketing") renderMarketingForm(existing ? B.calculateMarketing(existing) : B.calculateMarketing({ fecha: U.today(), pagadoPor: "Termal" }));
+    els.businessDialog.showModal();
+  }
+
+  function renderB2BForm(record) {
+    els.businessEyebrow.textContent = "EMPRESAS";
+    els.businessTitle.textContent = record.id ? `Editar ${record.codigo}` : "Nuevo trabajo B2B";
+    els.saveBusinessButton.textContent = record.id ? "Guardar cambios" : "Guardar trabajo";
+    els.businessBody.innerHTML = `<div class="form-section"><div class="form-section-title"><strong>Datos del trabajo</strong></div><div class="form-grid">
+      ${fieldInput("Fecha de inicio", "fecha", "date", record.fecha, true)}
+      ${fieldInput("Entrega acordada", "fechaEntregaAcordada", "date", record.fechaEntregaAcordada, true)}
+      ${fieldInput("Entrega real · opcional", "fechaEntregaReal", "date", record.fechaEntregaReal)}
+      ${fieldInput("Empresa", "empresa", "text", record.empresa, true, "Razón social o nombre")}
+      ${fieldInput("RUC · opcional", "ruc", "text", record.ruc, false, "RUC")}
+      ${fieldInput("Contacto · opcional", "contacto", "text", record.contacto, false, "Nombre, teléfono o correo")}
+      <label class="check-card"><input type="checkbox" name="aplicaIgv" ${record.aplicaIgv ? "checked" : ""}><span><strong>Aplica IGV</strong><small>Suma 18% a la venta</small></span></label>
+      <label class="check-card"><input type="checkbox" name="facturaEmitida" ${record.facturaEmitida ? "checked" : ""}><span><strong>Factura emitida</strong><small>Solo control interno</small></span></label>
+    </div></div>
+    <div class="form-section"><div class="form-section-title"><strong>Productos</strong><button type="button" class="btn btn-secondary btn-sm" data-business-form-action="add-b2b-item">＋ Agregar producto</button></div>
+      <div class="b2b-items" data-b2b-items>${record.items.map(b2bItemFormRow).join("")}</div></div>
+    <div class="form-section"><div class="form-section-title"><strong>Costos generales</strong></div><div class="form-grid">
+      ${fieldInput("Administración y ventas", "gastoAdminVentas", "number", record.gastoAdminVentas, false, "0.00", 'min="0" step="0.01"')}
+      ${fieldInput("Gastos logísticos", "gastoLogistico", "number", record.gastoLogistico, false, "0.00", 'min="0" step="0.01"')}
+      ${fieldInput("Otros costos · opcional", "otrosCostos", "number", record.otrosCostos, false, "0.00", 'min="0" step="0.01"')}
+    </div></div>
+    ${record.id ? "" : initialPaymentMarkup("Pago inicial · opcional", record.ventaTotal, "recibidoPor")}
+    <div class="form-section"><div class="form-section-title"><strong>Documentos y notas</strong></div><div class="form-grid">
+      <label class="field field-span-2"><span>Cotización PDF · opcional</span><input type="file" name="attachment" accept="application/pdf"><small>${record.cotizacionNombre ? `Actual: ${U.escapeHtml(record.cotizacionNombre)}` : "Se guardará en Google Drive al conectar el backend v3."}</small></label>
+      <label class="field field-span-2"><span>Notas · opcional</span><textarea name="notas">${U.escapeHtml(record.notas)}</textarea></label>
+    </div></div>
+    <div class="business-live-summary" data-business-live-summary></div><p class="form-error" data-business-error></p>`;
+    updateBusinessFormSummary();
+  }
+
+  function b2bItemFormRow(item) {
+    return `<div class="b2b-item-row" data-b2b-item data-item-id="${U.escapeHtml(item.id || U.uid("item"))}">
+      <label class="field b2b-description"><span>Descripción</span><textarea data-item-key="descripcion" required>${U.escapeHtml(item.descripcion)}</textarea></label>
+      ${miniNumberField("Cantidad", "cantidad", item.cantidad || 1, "1")}
+      ${miniNumberField("Venta unit.", "precioUnitario", item.precioUnitario, "0.01")}
+      ${miniNumberField("Termo/u", "costoTermoUnitario", item.costoTermoUnitario, "0.01")}
+      ${miniNumberField("Grabado/u", "costoGrabadoUnitario", item.costoGrabadoUnitario, "0.01")}
+      ${miniNumberField("Caja/u", "costoCajaUnitario", item.costoCajaUnitario, "0.01")}
+      <div class="b2b-item-total"><small>Venta / costo</small><strong data-item-total>${U.currency(item.venta)} / ${U.currency(item.costo)}</strong></div>
+      <button type="button" class="remove-item-button" data-business-form-action="remove-b2b-item" aria-label="Eliminar producto">×</button>
+    </div>`;
+  }
+
+  function miniNumberField(label, key, value, step) {
+    return `<label class="field"><span>${label}</span><input type="number" data-item-key="${key}" value="${U.number(value)}" min="0" step="${step}"></label>`;
+  }
+
+  function initialPaymentMarkup(title, suggested, accountName = "pagadoPor") {
+    return `<div class="form-section"><div class="form-section-title"><strong>${title}</strong></div><div class="form-grid">
+      ${fieldInput("Monto", "initialPayment", "number", 0, false, "0.00", `min="0" max="${U.number(suggested)}" step="0.01"`)}
+      <label class="field"><span>${accountName === "recibidoPor" ? "Recibido por" : "Pagado por"}</span><select name="${accountName}">${B.BUSINESS_ACCOUNTS.map((account) => `<option value="${account}">${account}</option>`).join("")}</select></label>
+      ${fieldInput("Fecha del pago", "initialPaymentDate", "date", U.today())}
+    </div></div>`;
+  }
+
+  function renderPurchaseForm(record) {
+    const categories = [...new Set([...(state.lists.categoriasCompras || []), ...B.DEFAULT_PURCHASE_CATEGORIES])];
+    els.businessEyebrow.textContent = "COMPRAS";
+    els.businessTitle.textContent = record.id ? "Editar compra" : "Nueva compra";
+    els.saveBusinessButton.textContent = record.id ? "Guardar cambios" : "Guardar compra";
+    els.businessBody.innerHTML = `<div class="form-section"><div class="form-section-title"><strong>Datos de la compra</strong></div><div class="form-grid">
+      ${fieldInput("Fecha", "fecha", "date", record.fecha, true)}
+      <label class="field required"><span>Categoría</span><input name="categoria" list="purchaseCategoryList" value="${U.escapeHtml(record.categoria)}" required placeholder="Selecciona o escribe una nueva"><datalist id="purchaseCategoryList">${categories.map((item) => `<option value="${U.escapeHtml(item)}">`).join("")}</datalist><small>Puedes escribir una categoría nueva.</small></label>
+      ${fieldInput("Producto", "producto", "text", record.producto, true, "Ej. Termos 890 ml")}
+      ${fieldInput("Proveedor", "proveedor", "text", record.proveedor, true)}
+      ${fieldInput("Detalle · opcional", "detalle", "text", record.detalle, false, "Descripción de la compra")}
+      ${fieldInput("Cantidad", "cantidad", "number", record.cantidad || 1, true, "1", 'min="0.01" step="0.01"')}
+      ${fieldInput("Costo unitario", "costoUnitario", "number", record.costoUnitario, true, "0.00", 'min="0" step="0.01"')}
+      <label class="check-card"><input type="checkbox" name="incluyeIgv" ${record.incluyeIgv ? "checked" : ""}><span><strong>El costo incluye IGV</strong><small>Separa el 18% para análisis</small></span></label>
+    </div></div>
+    ${record.id ? "" : initialPaymentMarkup("Pago inicial · opcional", record.costoTotal, "pagadoPor")}
+    <div class="form-section"><div class="form-section-title"><strong>Factura y notas</strong></div><div class="form-grid">
+      <label class="field field-span-2"><span>Factura PDF · opcional</span><input type="file" name="attachment" accept="application/pdf"><small>${record.facturaNombre ? `Actual: ${U.escapeHtml(record.facturaNombre)}` : "No necesitas registrar RUC, serie ni número."}</small></label>
+      <label class="field field-span-2"><span>Notas · opcional</span><textarea name="notas">${U.escapeHtml(record.notas)}</textarea></label>
+    </div></div><div class="business-live-summary" data-business-live-summary></div><p class="form-error" data-business-error></p>`;
+    updateBusinessFormSummary();
+  }
+
+  function renderMarketingForm(record) {
+    const categories = [...new Set([...(state.lists.categoriasMarketing || []), ...B.DEFAULT_MARKETING_CATEGORIES])];
+    els.businessEyebrow.textContent = "MARKETING";
+    els.businessTitle.textContent = record.id ? "Editar gasto" : "Nuevo gasto de marketing";
+    els.saveBusinessButton.textContent = record.id ? "Guardar cambios" : "Guardar gasto";
+    els.businessBody.innerHTML = `<div class="form-section"><div class="form-section-title"><strong>Datos del gasto</strong></div><div class="form-grid">
+      ${fieldInput("Fecha", "fecha", "date", record.fecha, true)}
+      <label class="field required"><span>Categoría</span><input name="categoria" list="marketingCategoryList" value="${U.escapeHtml(record.categoria)}" required placeholder="Selecciona o escribe una nueva"><datalist id="marketingCategoryList">${categories.map((item) => `<option value="${U.escapeHtml(item)}">`).join("")}</datalist><small>Puedes escribir una categoría nueva.</small></label>
+      ${fieldInput("Soles", "soles", "number", record.soles, false, "0.00", 'min="0" step="0.01"')}
+      ${fieldInput("Dólares", "dolares", "number", record.dolares, false, "0.00", 'min="0" step="0.01"')}
+      ${fieldInput("Tipo de cambio del banco", "tipoCambio", "number", record.tipoCambio, false, "0.0000", 'min="0" step="0.0001"')}
+      <label class="field required"><span>Pagado por</span><select name="pagadoPor" required>${B.BUSINESS_ACCOUNTS.map((account) => `<option value="${account}" ${record.pagadoPor === account ? "selected" : ""}>${account}</option>`).join("")}</select></label>
+      <label class="field field-span-2 required"><span>Detalle</span><textarea name="detalle" required>${U.escapeHtml(record.detalle)}</textarea></label>
+    </div></div><div class="business-live-summary" data-business-live-summary></div><p class="form-error" data-business-error></p>`;
+    updateBusinessFormSummary();
+  }
+
+  function handleBusinessFormClick(event) {
+    const button = event.target.closest("[data-business-form-action]");
+    if (!button) return;
+    if (button.dataset.businessFormAction === "add-b2b-item") {
+      els.businessForm.querySelector("[data-b2b-items]").insertAdjacentHTML("beforeend", b2bItemFormRow(B.calculateB2B({ items: [{ cantidad: 1 }] }).items[0]));
+    }
+    if (button.dataset.businessFormAction === "remove-b2b-item") {
+      const rows = els.businessForm.querySelectorAll("[data-b2b-item]");
+      if (rows.length > 1) button.closest("[data-b2b-item]").remove();
+      else toast("warning", "Necesitas un producto", "El trabajo B2B debe conservar al menos una fila.");
+    }
+    updateBusinessFormSummary();
+  }
+
+  function handleBusinessFormInput() {
+    if (state.businessType === "marketing") {
+      const dollars = U.number(els.businessForm.elements.dolares?.value);
+      const rate = U.number(els.businessForm.elements.tipoCambio?.value);
+      const solesInput = els.businessForm.elements.soles;
+      if (dollars > 0) {
+        solesInput.value = U.money(dollars * rate).toFixed(2);
+        solesInput.readOnly = true;
+      } else {
+        solesInput.readOnly = false;
+      }
+    }
+    updateBusinessFormSummary();
+  }
+
+  function collectBusinessRecord() {
+    const form = els.businessForm;
+    const existing = state.businessEditingId ? getBusinessRecord(state.businessType, state.businessEditingId) : null;
+    const base = existing ? { ...existing } : {};
+    if (state.businessType === "b2b") {
+      const items = [...form.querySelectorAll("[data-b2b-item]")].map((row) => ({
+        id: row.dataset.itemId,
+        descripcion: row.querySelector('[data-item-key="descripcion"]').value,
+        cantidad: U.number(row.querySelector('[data-item-key="cantidad"]').value),
+        precioUnitario: U.number(row.querySelector('[data-item-key="precioUnitario"]').value),
+        costoTermoUnitario: U.number(row.querySelector('[data-item-key="costoTermoUnitario"]').value),
+        costoGrabadoUnitario: U.number(row.querySelector('[data-item-key="costoGrabadoUnitario"]').value),
+        costoCajaUnitario: U.number(row.querySelector('[data-item-key="costoCajaUnitario"]').value)
+      }));
+      const record = B.calculateB2B({ ...base, fecha: form.elements.fecha.value, fechaEntregaAcordada: form.elements.fechaEntregaAcordada.value,
+        fechaEntregaReal: form.elements.fechaEntregaReal.value, empresa: form.elements.empresa.value, ruc: form.elements.ruc.value,
+        contacto: form.elements.contacto.value, aplicaIgv: form.elements.aplicaIgv.checked, facturaEmitida: form.elements.facturaEmitida.checked,
+        gastoAdminVentas: form.elements.gastoAdminVentas.value, gastoLogistico: form.elements.gastoLogistico.value,
+        otrosCostos: form.elements.otrosCostos.value, notas: form.elements.notas.value, items });
+      addInitialPayment(record, form, "recibidoPor");
+      return B.calculateB2B(record);
+    }
+    if (state.businessType === "purchase") {
+      const record = B.calculatePurchase({ ...base, fecha: form.elements.fecha.value, categoria: form.elements.categoria.value,
+        producto: form.elements.producto.value, proveedor: form.elements.proveedor.value, detalle: form.elements.detalle.value,
+        cantidad: form.elements.cantidad.value, costoUnitario: form.elements.costoUnitario.value,
+        incluyeIgv: form.elements.incluyeIgv.checked, notas: form.elements.notas.value });
+      addInitialPayment(record, form, "pagadoPor");
+      return B.calculatePurchase(record);
+    }
+    return B.calculateMarketing({ ...base, fecha: form.elements.fecha.value, categoria: form.elements.categoria.value,
+      soles: form.elements.soles.value, dolares: form.elements.dolares.value, tipoCambio: form.elements.tipoCambio.value,
+      detalle: form.elements.detalle.value, pagadoPor: form.elements.pagadoPor.value });
+  }
+
+  function addInitialPayment(record, form, accountName) {
+    if (record.id || !form.elements.initialPayment) return;
+    const amount = U.number(form.elements.initialPayment.value);
+    if (amount <= 0) return;
+    record.pagos = [...(record.pagos || []), { id: U.uid("pago"), fecha: form.elements.initialPaymentDate.value || U.today(), monto: amount,
+      cuenta: form.elements[accountName].value, metodo: "", nota: "Pago inicial" }];
+  }
+
+  function updateBusinessFormSummary() {
+    const target = els.businessForm.querySelector("[data-business-live-summary]");
+    if (!target) return;
+    const record = collectBusinessRecord();
+    if (state.businessType === "b2b") {
+      els.businessForm.querySelectorAll("[data-b2b-item]").forEach((row, index) => {
+        const total = row.querySelector("[data-item-total]");
+        if (total && record.items[index]) total.textContent = `${U.currency(record.items[index].venta)} / ${U.currency(record.items[index].costo)}`;
+      });
+      target.innerHTML = summaryCells([
+        ["Venta sin IGV", U.currency(record.ventaSinIgv)], ["IGV", U.currency(record.igv)], ["Total", U.currency(record.ventaTotal)],
+        ["Costo productos", U.currency(record.costoProductos)], ["Costo total", U.currency(record.costoTotal)],
+        ["Utilidad", U.currency(record.utilidad), record.utilidad < 0 ? "money-danger" : "money-positive"], ["Margen", `${record.margen.toFixed(1)}%`]
+      ]);
+    } else if (state.businessType === "purchase") {
+      target.innerHTML = summaryCells([["Costo total", U.currency(record.costoTotal)], ["Valor sin IGV", U.currency(record.valorSinIgv)], ["IGV", U.currency(record.igv)]]);
+    } else {
+      target.innerHTML = summaryCells([["Dólares", `US$ ${record.dolares.toFixed(2)}`], ["Tipo de cambio", record.dolares ? record.tipoCambio.toFixed(4) : "—"], ["Gasto en soles", U.currency(record.soles)]]);
+    }
+  }
+
+  function summaryCells(cells) {
+    return cells.map(([label, value, className]) => `<span><small>${label}</small><strong class="${className || ""}">${value}</strong></span>`).join("");
+  }
+
+  async function submitBusinessForm(event) {
+    event.preventDefault();
+    const record = collectBusinessRecord();
+    const errors = state.businessType === "b2b" ? B.validateB2B(record) : state.businessType === "purchase" ? B.validatePurchase(record) : B.validateMarketing(record);
+    const errorBox = els.businessForm.querySelector("[data-business-error]");
+    if (errors.length) { errorBox.textContent = errors.join(" "); return; }
+    errorBox.textContent = "";
+    const file = els.businessForm.elements.attachment?.files?.[0];
+    if (file && (file.type !== "application/pdf" || file.size > 8 * 1024 * 1024)) {
+      errorBox.textContent = "Adjunta un PDF de máximo 8 MB.";
+      return;
+    }
+    setButtonLoading(els.saveBusinessButton, true, "Guardando…");
+    try {
+      const attachment = file ? await readPdfAttachment(file) : null;
+      const action = state.businessType === "b2b" ? "saveB2B" : state.businessType === "purchase" ? "savePurchase" : "saveMarketing";
+      const saved = await API.request(action, { record, attachment });
+      upsertBusinessRecord(state.businessType, saved);
+      closeDialog("businessDialog");
+      toast("success", "Registro guardado", state.businessType === "b2b" ? `${saved.codigo} quedó actualizado.` : "La información quedó actualizada.");
+      render();
+    } catch (error) {
+      errorBox.textContent = error.message;
+    } finally {
+      setButtonLoading(els.saveBusinessButton, false, "Guardar");
+    }
+  }
+
+  function readPdfAttachment(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: file.name, mimeType: file.type, base64: String(reader.result).split(",")[1] || "" });
+      reader.onerror = () => reject(new Error("No se pudo leer el PDF."));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function upsertBusinessRecord(type, raw) {
+    const calculator = type === "b2b" ? B.calculateB2B : type === "purchase" ? B.calculatePurchase : B.calculateMarketing;
+    const record = calculator(raw);
+    const collection = type === "b2b" ? state.b2b : type === "purchase" ? state.purchases : state.marketing;
+    const index = collection.findIndex((item) => item.id === record.id);
+    if (index >= 0) collection[index] = record;
+    else collection.unshift(record);
+    if (type === "purchase") rememberLocalCategory("categoriasCompras", record.categoria);
+    if (type === "marketing") rememberLocalCategory("categoriasMarketing", record.categoria);
+  }
+
+  function rememberLocalCategory(key, value) {
+    state.lists[key] = state.lists[key] || [];
+    if (value && !state.lists[key].some((item) => U.normalizeText(item) === U.normalizeText(value))) state.lists[key].push(value);
+  }
+
+  function openBusinessPayment(type, record) {
+    state.businessPayment = { type, id: record.id };
+    const remaining = type === "b2b" ? record.porCobrar : record.porPagar;
+    els.businessPaymentTitle.textContent = type === "b2b" ? "Agregar pago del cliente" : "Agregar pago al proveedor";
+    els.businessPaymentBody.innerHTML = `<p class="metric-meta">${U.escapeHtml(type === "b2b" ? record.empresa : record.proveedor)} · pendiente ${U.currency(remaining)}</p><div class="form-grid" style="margin-top:15px">
+      ${fieldInput("Fecha", "fecha", "date", U.today(), true)}
+      ${fieldInput("Monto", "monto", "number", remaining, true, "0.00", `min="0.01" max="${remaining}" step="0.01"`)}
+      <label class="field required"><span>${type === "b2b" ? "Recibido por" : "Pagado por"}</span><select name="cuenta" required>${B.BUSINESS_ACCOUNTS.map((account) => `<option value="${account}">${account}</option>`).join("")}</select></label>
+      ${fieldInput("Método · opcional", "metodo", "text", "", false, "Yape, transferencia…")}
+      <label class="field field-span-2"><span>Nota · opcional</span><textarea name="nota"></textarea></label>
+    </div><p class="form-error" data-business-payment-error></p>`;
+    els.businessPaymentDialog.showModal();
+  }
+
+  async function submitBusinessPayment(event) {
+    event.preventDefault();
+    const form = els.businessPaymentForm;
+    const paymentType = state.businessPayment.type;
+    const record = getBusinessRecord(paymentType, state.businessPayment.id);
+    const remaining = paymentType === "b2b" ? record?.porCobrar : record?.porPagar;
+    const payment = { fecha: form.elements.fecha.value, monto: U.number(form.elements.monto.value), cuenta: form.elements.cuenta.value,
+      metodo: form.elements.metodo.value, nota: form.elements.nota.value };
+    const errorBox = form.querySelector("[data-business-payment-error]");
+    if (!record || payment.monto <= 0 || payment.monto > remaining + 0.009) { errorBox.textContent = "Ingresa un monto válido que no supere lo pendiente."; return; }
+    const button = form.querySelector('[type="submit"]');
+    setButtonLoading(button, true, "Guardando…");
+    try {
+      const saved = await API.request("addBusinessPayment", { type: paymentType, id: record.id, payment });
+      upsertBusinessRecord(paymentType, saved);
+      closeDialog("businessPaymentDialog");
+      toast("success", "Pago agregado", `Nuevo pendiente: ${U.currency(paymentType === "b2b" ? saved.porCobrar : saved.porPagar)}.`);
+      render();
+    } catch (error) { errorBox.textContent = error.message; }
+    finally { setButtonLoading(button, false, "Agregar pago"); }
+  }
+
+  function openBusinessDetail(type, record) {
+    els.detailEyebrow.textContent = type === "b2b" ? "EMPRESAS" : type === "purchase" ? "COMPRAS" : "MARKETING";
+    els.detailTitle.textContent = type === "b2b" ? `${record.codigo} · ${record.empresa}` : type === "purchase" ? record.producto : record.categoria;
+    if (type === "b2b") els.detailBody.innerHTML = b2bDetailMarkup(record);
+    if (type === "purchase") els.detailBody.innerHTML = purchaseDetailMarkup(record);
+    if (type === "marketing") els.detailBody.innerHTML = marketingDetailMarkup(record);
+    els.detailFooter.innerHTML = `<button class="btn btn-secondary" data-close-business-detail>Cerrar</button>${type !== "marketing" ? `<button class="btn btn-primary" data-detail-business-payment>Agregar pago</button>` : ""}`;
+    els.detailFooter.querySelector("[data-close-business-detail]").addEventListener("click", () => closeDialog("detailDialog"));
+    els.detailFooter.querySelector("[data-detail-business-payment]")?.addEventListener("click", () => { closeDialog("detailDialog"); openBusinessPayment(type, record); });
+    els.detailDialog.showModal();
+  }
+
+  function b2bDetailMarkup(record) {
+    return `<div class="business-detail-summary">${summaryCells([["Inicio", U.formatDate(record.fecha)], ["Entrega acordada", U.formatDate(record.fechaEntregaAcordada)], ["Venta total", U.currency(record.ventaTotal)], ["Por cobrar", U.currency(record.porCobrar), record.porCobrar ? "money-warning" : ""], ["Utilidad", U.currency(record.utilidad), record.utilidad < 0 ? "money-danger" : "money-positive"], ["Margen", `${record.margen.toFixed(1)}%`]])}</div>
+      <section class="detail-block"><h3>Empresa</h3><dl class="detail-list"><div><dt>Empresa</dt><dd>${U.escapeHtml(record.empresa)}</dd></div><div><dt>RUC</dt><dd>${U.escapeHtml(record.ruc || "—")}</dd></div><div><dt>Contacto</dt><dd>${U.escapeHtml(record.contacto || "—")}</dd></div><div><dt>Factura</dt><dd>${record.facturaEmitida ? "Emitida" : "Pendiente"}</dd></div></dl></section>
+      <details class="detail-disclosure" open><summary><span>Productos</span><small>${record.cantidadTotal} unidades</small></summary><div class="detail-disclosure-body"><div class="table-scroll"><table class="business-table"><thead><tr><th>Descripción</th><th>Cant.</th><th>Venta/u</th><th>Costo/u</th><th>Venta</th><th>Costo</th></tr></thead><tbody>${record.items.map((item) => `<tr><td>${U.escapeHtml(item.descripcion)}</td><td>${item.cantidad}</td><td>${U.currency(item.precioUnitario)}</td><td>${U.currency(item.costoUnitario)}</td><td>${U.currency(item.venta)}</td><td>${U.currency(item.costo)}</td></tr>`).join("")}</tbody></table></div></div></details>
+      ${paymentsDisclosure(record.pagos, "Pagos del cliente")}
+      <details class="detail-disclosure"><summary><span>Costos y utilidad</span><small>${U.currency(record.costoTotal)}</small></summary><div class="detail-disclosure-body">${detailBlock("Costos", [["Termos", U.currency(record.costoTermos)], ["Grabados", U.currency(record.costoGrabados)], ["Cajas", U.currency(record.costoCajas)], ["Administración/ventas", U.currency(record.gastoAdminVentas)], ["Logística", U.currency(record.gastoLogistico)], ["Otros", U.currency(record.otrosCostos)], ["Costo total", U.currency(record.costoTotal)], ["Utilidad", U.currency(record.utilidad)]])}</div></details>
+      ${attachmentMarkup("Cotización", record.cotizacionNombre, record.cotizacionUrl)}${record.notas ? detailBlock("Notas", [["", record.notas]]) : ""}`;
+  }
+
+  function purchaseDetailMarkup(record) {
+    return `<div class="business-detail-summary">${summaryCells([["Fecha", U.formatDate(record.fecha)], ["Cantidad", record.cantidad], ["Costo total", U.currency(record.costoTotal)], ["Pagado", U.currency(record.pagado)], ["Por pagar", U.currency(record.porPagar), record.porPagar ? "money-warning" : ""]])}</div>
+      ${detailBlock("Compra", [["Categoría", record.categoria], ["Producto", record.producto], ["Proveedor", record.proveedor], ["Detalle", record.detalle || "—"], ["Costo unitario", U.currency(record.costoUnitario)], ["Incluye IGV", record.incluyeIgv ? "Sí" : "No"], ["Valor sin IGV", U.currency(record.valorSinIgv)], ["IGV", U.currency(record.igv)]])}
+      ${paymentsDisclosure(record.pagos, "Pagos al proveedor")}${attachmentMarkup("Factura", record.facturaNombre, record.facturaUrl)}${record.notas ? detailBlock("Notas", [["", record.notas]]) : ""}`;
+  }
+
+  function marketingDetailMarkup(record) {
+    return `<div class="business-detail-summary">${summaryCells([["Fecha", U.formatDate(record.fecha)], ["Soles", U.currency(record.soles)], ["Dólares", `US$ ${record.dolares.toFixed(2)}`], ["Tipo de cambio", record.dolares ? record.tipoCambio.toFixed(4) : "—"]])}</div>${detailBlock("Gasto", [["Categoría", record.categoria], ["Detalle", record.detalle], ["Pagado por", record.pagadoPor]])}`;
+  }
+
+  function paymentsDisclosure(payments, title) {
+    return `<details class="detail-disclosure"><summary><span>${title}</span><small>${payments.length} pago${payments.length === 1 ? "" : "s"}</small></summary><div class="detail-disclosure-body">${payments.length ? `<div class="payment-timeline">${payments.map((payment, index) => `<div><span>${index + 1}</span><strong>${U.currency(payment.monto)}</strong><small>${U.formatDate(payment.fecha)} · ${U.escapeHtml(payment.cuenta)}${payment.metodo ? ` · ${U.escapeHtml(payment.metodo)}` : ""}</small></div>`).join("")}</div>` : `<p class="cash-empty">Todavía no hay pagos registrados.</p>`}</div></details>`;
+  }
+
+  function attachmentMarkup(label, name, url) {
+    if (!name && !url) return "";
+    const safeUrl = safeHttpUrl(url);
+    return `<section class="detail-block"><h3>${label}</h3><p>${U.escapeHtml(name || "Documento adjunto")}</p>${safeUrl ? `<a class="btn btn-secondary btn-sm" href="${U.escapeHtml(safeUrl)}" target="_blank" rel="noopener">Ver PDF</a>` : ""}</section>`;
+  }
+
+  async function archiveBusinessRecord(type, record) {
+    const label = type === "b2b" ? record.codigo : type === "purchase" ? record.producto : record.detalle;
+    const confirmed = await confirmDialog("Eliminar registro", `${label} dejará de aparecer en la aplicación.`, "Eliminar", true);
+    if (!confirmed) return;
+    try {
+      await API.request("archiveBusinessRecord", { type, id: record.id });
+      record.active = false;
+      toast("success", "Registro eliminado", "La información dejó de aparecer en la lista.");
+      render();
+    } catch (error) { toast("error", "No se pudo eliminar", error.message); }
+  }
+
   function handleMainClick(event) {
     const actionButton = event.target.closest("[data-action]");
     if (actionButton) {
@@ -1671,6 +2228,20 @@
       if (action === "movement-history") openMovementHistory();
       if (action === "open-dispatch") openDispatchDialog();
       if (action === "open-cash") navigate("caja");
+      if (action === "new-b2b") openBusinessForm("b2b");
+      if (action === "new-purchase") openBusinessForm("purchase");
+      if (action === "new-marketing") openBusinessForm("marketing");
+      return;
+    }
+    const businessAction = event.target.closest("[data-business-action]");
+    if (businessAction) {
+      const type = businessAction.dataset.businessType;
+      const record = getBusinessRecord(type, businessAction.dataset.id);
+      if (!record) return;
+      if (businessAction.dataset.businessAction === "view") openBusinessDetail(type, record);
+      if (businessAction.dataset.businessAction === "edit") openBusinessForm(type, record);
+      if (businessAction.dataset.businessAction === "payment") openBusinessPayment(type, record);
+      if (businessAction.dataset.businessAction === "archive") archiveBusinessRecord(type, record);
       return;
     }
     const quickFilter = event.target.closest("[data-quick-filter]");
@@ -1713,6 +2284,11 @@
   }
 
   function handleMainInput(event) {
+    if (event.target.dataset.businessSearch) {
+      state.businessSearch[event.target.dataset.businessSearch] = event.target.value;
+      debounceRenderBusiness();
+      return;
+    }
     if (event.target.dataset.filter === "search") {
       state.filters.search = event.target.value;
       state.page = 1;
@@ -1784,8 +2360,9 @@
 
   function renderMovementHistoryBody() {
     const filters = state.cashHistoryFilters;
-    const types = [...new Set(state.movements.map((movement) => movement.naturaleza || movement.type).filter(Boolean))];
-    const filtered = state.movements.filter((movement) => {
+    const allMovements = cashMovements();
+    const types = [...new Set(allMovements.map((movement) => movement.naturaleza || movement.type).filter(Boolean))];
+    const filtered = allMovements.filter((movement) => {
       if (filters.person && movementPerson(movement) !== filters.person) return false;
       if (filters.type && (movement.naturaleza || movement.type) !== filters.type) return false;
       if (filters.start && U.dateInput(movement.date) < filters.start) return false;
@@ -1807,7 +2384,7 @@
       </div>
       <div class="cash-history-results"><span>${filtered.length} movimiento${filtered.length === 1 ? "" : "s"}</span></div>
       ${filtered.length ? `<div class="cash-history-list">${filtered.slice(0, 100).map(cashHistoryRow).join("")}</div>` :
-        emptyState("≋", "Sin movimientos", state.movements.length ? "No hay resultados para estos filtros." : "Las transferencias, devoluciones y reembolsos aparecerán aquí.")}`;
+        emptyState("≋", "Sin movimientos", allMovements.length ? "No hay resultados para estos filtros." : "Las transferencias, devoluciones y reembolsos aparecerán aquí.")}`;
   }
 
   function handleDetailBodyChange(event) {
@@ -1956,6 +2533,8 @@
     if (id === "shippingDialog") state.shippingSaleId = "";
     if (id === "problemDialog") state.problemSaleId = "";
     if (id === "orderActionsDialog") state.actionSaleId = "";
+    if (id === "businessDialog") { state.businessType = ""; state.businessEditingId = ""; }
+    if (id === "businessPaymentDialog") state.businessPayment = { type: "", id: "" };
     if (id === "confirmDialog" && state.confirmAction) {
       state.confirmAction(false);
       state.confirmAction = null;
@@ -2038,6 +2617,34 @@
     totals.orders = sales.length;
     totals.ticket = totals.orders ? totals.sales / totals.orders : 0;
     return totals;
+  }
+
+  function summarizeB2B(records) {
+    const totals = records.reduce((acc, record) => {
+      acc.sales += U.number(record.ventaTotal);
+      acc.netSales += U.number(record.ventaSinIgv);
+      acc.collected += U.number(record.cobrado);
+      acc.pending += U.number(record.porCobrar);
+      acc.costs += U.number(record.costoTotal);
+      acc.profit += U.number(record.utilidad);
+      acc.items += U.number(record.cantidadTotal);
+      return acc;
+    }, { sales: 0, netSales: 0, collected: 0, pending: 0, costs: 0, profit: 0, items: 0 });
+    totals.projects = records.length;
+    Object.keys(totals).forEach((key) => { if (typeof totals[key] === "number") totals[key] = U.money(totals[key]); });
+    return totals;
+  }
+
+  function groupBusinessRecords(records, key, valueKey) {
+    const groups = new Map();
+    records.forEach((record) => {
+      const label = String(record[key] || "Sin dato").trim() || "Sin dato";
+      const current = groups.get(label) || { label, orders: 0, sales: 0 };
+      current.orders += 1;
+      current.sales = U.money(current.sales + U.number(record[valueKey]));
+      groups.set(label, current);
+    });
+    return [...groups.values()].sort((a, b) => b.sales - a.sales);
   }
 
   function formToObject(form) {
@@ -2128,10 +2735,13 @@
       const value = U.number(row[valueKey]);
       const width = Math.max(value ? 4 : 0, Math.round((Math.abs(value) / maxValue) * 100));
       const formatted = options.mode === "units" ? `${value} u.` : U.currency(value);
+      const countLabel = options.countLabel || "registro";
       const meta = options.meta === "margin"
         ? `Margen ${percent(row.profit, row.sales)}% · ${row.units} unidades`
         : options.meta === "sales"
           ? `${U.currency(row.sales)} · ${row.orders} pedido${row.orders === 1 ? "" : "s"}`
+          : options.meta === "count"
+            ? `${row.orders} ${countLabel}${row.orders === 1 ? "" : "s"}`
           : `${row.orders} pedido${row.orders === 1 ? "" : "s"} · ${row.units} unidades`;
       return `<div class="analytics-row ${value < 0 ? "danger" : ""}">
         <div class="analytics-row-head"><span title="${U.escapeHtml(row.label)}">${U.escapeHtml(row.label)}</span><strong>${formatted}</strong></div>
@@ -2149,7 +2759,14 @@
 
   function cashCurrentBalance(person) {
     const active = state.sales.filter((sale) => sale.active !== false && sale.estadoPedido !== "Cancelado");
-    return U.cashBalances(active, state.movements).find((item) => item.person === person)?.balance || 0;
+    return U.cashBalances(active, cashMovements()).find((item) => item.person === person)?.balance || 0;
+  }
+
+  function cashMovements() {
+    return [
+      ...state.movements,
+      ...B.cashMovements(state.b2b, state.purchases, state.marketing)
+    ];
   }
 
   function cashMovementEffect(type, amount) {
@@ -2206,7 +2823,7 @@
     const saleEntries = sales
       .filter((sale) => Math.abs(U.cashSaleBalance(sale, person)) >= 0.01)
       .flatMap((sale) => cashSaleEntries(person, sale));
-    const movementEntries = state.movements
+    const movementEntries = cashMovements()
       .filter((movement) =>
         (movement.affectsCash === true || U.number(movement.schemaVersion) >= 2) &&
         movementPerson(movement) === person
@@ -2277,7 +2894,7 @@
   }
 
   function cashHistoryEntries(person) {
-    return state.movements
+    return cashMovements()
       .filter((movement) => movementPerson(movement) === person)
       .map((movement) => {
         const allocations = movement.allocations || [];
@@ -2389,7 +3006,8 @@
       DINSIDES_DEPOSIT: "Depósito de DINSIDES", TERMAL_PAY_DINSIDES: "Pago a DINSIDES",
       PERSON_TO_TERMAL: "Persona devuelve a Termal",
       TERMAL_TO_PERSON: "Termal devuelve a la persona",
-      PERSON_EXPENSE: "Gasto pagado por la persona"
+      PERSON_EXPENSE: "Gasto pagado por la persona",
+      BUSINESS_COLLECTION: "Cobro B2B recibido"
     }[type] || "Movimiento";
   }
 
@@ -2503,6 +3121,11 @@
       const month = String(sale.fecha || "").slice(0, 7);
       if (/^\d{4}-\d{2}$/.test(month)) months.add(month);
     });
+    [...state.b2b, ...state.purchases, ...state.marketing].forEach((record) => {
+      const date = record.fechaEntregaReal || record.fechaEntregaAcordada || record.fecha;
+      const month = String(date || "").slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(month)) months.add(month);
+    });
     return [...months].sort((a, b) => b.localeCompare(a)).map((value) => ({
       value,
       label: monthLabel(value)
@@ -2577,5 +3200,10 @@
   }
   const debounceRenderSales = debounce(() => {
     if (state.route === "ventas") renderSales();
+  }, 160);
+  const debounceRenderBusiness = debounce(() => {
+    if (state.route === "empresas") renderB2B();
+    if (state.route === "compras") renderPurchases();
+    if (state.route === "marketing") renderMarketing();
   }, 160);
 })();

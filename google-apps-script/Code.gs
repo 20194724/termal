@@ -11,12 +11,46 @@ const TERMAL_CONFIG = Object.freeze({
   SALES_SHEET: "Ventas",
   LISTS_SHEET: "Listas",
   MOVEMENTS_SHEET: "Movimientos",
+  B2B_SHEET: "Empresas",
+  PURCHASES_SHEET: "Compras",
+  MARKETING_SHEET: "Marketing",
   TIMEZONE: "America/Lima",
   CODE_PREFIX: "",
   ACCESS_KEY_PROPERTY: "TERMAL_ACCESS_KEY",
   SPREADSHEET_PROPERTY: "TERMAL_SPREADSHEET_ID",
   LAST_UPDATED_PROPERTY: "TERMAL_LAST_UPDATED"
 });
+
+const B2B_HEADERS = [
+  ["id", "ID interno"], ["active", "Activo"], ["version", "Versión"], ["createdAt", "Creado"],
+  ["updatedAt", "Actualizado"], ["deletedAt", "Eliminado"], ["codigo", "Código B2B"],
+  ["fecha", "Fecha de inicio"], ["fechaEntregaAcordada", "Entrega acordada"], ["fechaEntregaReal", "Entrega real"],
+  ["empresa", "Empresa"], ["ruc", "RUC"], ["contacto", "Contacto"], ["aplicaIgv", "Aplica IGV"],
+  ["facturaEmitida", "Factura emitida"], ["items", "Productos JSON"], ["pagos", "Pagos JSON"],
+  ["gastoAdminVentas", "Gasto administración y ventas"], ["gastoLogistico", "Gasto logístico"],
+  ["otrosCostos", "Otros costos"], ["ventaSinIgv", "Venta sin IGV"], ["igv", "IGV"],
+  ["ventaTotal", "Venta total"], ["costoProductos", "Costo de productos"], ["costoTotal", "Costo total"],
+  ["utilidad", "Utilidad"], ["margen", "Margen"], ["cantidadTotal", "Unidades"],
+  ["cobrado", "Cobrado"], ["porCobrar", "Por cobrar"], ["cotizacionNombre", "Cotización PDF"],
+  ["cotizacionUrl", "Enlace cotización"], ["cotizacionFileId", "ID cotización"], ["notas", "Notas"]
+];
+
+const PURCHASE_HEADERS = [
+  ["id", "ID interno"], ["active", "Activo"], ["version", "Versión"], ["createdAt", "Creado"],
+  ["updatedAt", "Actualizado"], ["deletedAt", "Eliminado"], ["fecha", "Fecha"], ["categoria", "Categoría"],
+  ["producto", "Producto"], ["proveedor", "Proveedor"], ["detalle", "Detalle"], ["cantidad", "Cantidad"],
+  ["costoUnitario", "Costo unitario"], ["costoTotal", "Costo total"], ["pagos", "Pagos JSON"],
+  ["pagado", "Pagado"], ["porPagar", "Por pagar"], ["incluyeIgv", "Costo incluye IGV"],
+  ["valorSinIgv", "Valor sin IGV"], ["igv", "IGV"], ["facturaNombre", "Factura PDF"],
+  ["facturaUrl", "Enlace factura"], ["facturaFileId", "ID factura"], ["notas", "Notas"]
+];
+
+const MARKETING_HEADERS = [
+  ["id", "ID interno"], ["active", "Activo"], ["version", "Versión"], ["createdAt", "Creado"],
+  ["updatedAt", "Actualizado"], ["deletedAt", "Eliminado"], ["fecha", "Fecha"], ["categoria", "Categoría"],
+  ["soles", "Soles"], ["dolares", "Dólares"], ["tipoCambio", "Tipo de cambio"],
+  ["detalle", "Detalle"], ["pagadoPor", "Pagado por"]
+];
 
 const SALES_HEADERS = [
   ["id", "ID interno"],
@@ -126,6 +160,8 @@ const DEFAULT_LISTS = {
   problemas: ["NO", "Error de producción / grabado", "Cliente no estaba", "Redireccionamiento", "Cambio de producto", "Otro"],
   modalidadesLogisticas: ["Entrega y cobro", "Recojo sin cobro", "Envío a provincia", "Recojo en tienda"],
   pagadoresLogistica: ["Gonzalo", "Alberto", "Mancomunada", "DINSIDES"],
+  categoriasCompras: ["Termos", "Cajas", "Stickers", "Grabado láser", "Grabado UV", "Materiales", "Maquinaria y activos", "Otros"],
+  categoriasMarketing: ["Meta ads", "Shopify", "Sesión fotos/videos", "Canje", "Dominio y web", "Diseño y contenido", "Otros"],
   tiposProductos: [
     { nombre: "Termo 1200 ml", codigo: "1200", costoBase: 25.5, colores: ["Negro", "Crema", "Blanco"] },
     { nombre: "Termo 890 ml", codigo: "890", costoBase: 19, colores: ["Negro", "Crema", "Blanco"] },
@@ -160,6 +196,7 @@ function prepararInstalacionInicial() {
     ensureSalesSheet_(spreadsheet);
     ensureListsSheet_(spreadsheet);
     ensureMovementsSheet_(spreadsheet);
+    ensureBusinessSheets_(spreadsheet);
     const properties = PropertiesService.getScriptProperties();
     let accessKey = properties.getProperty(TERMAL_CONFIG.ACCESS_KEY_PROPERTY);
     if (!accessKey) {
@@ -196,6 +233,29 @@ function prepararActualizacionV2() {
     ensureMovementsSheet_(spreadsheet);
     touchUpdated_();
     const result = "✅ ERP MINI TERMAL v2 preparado sin cambiar la clave ni borrar datos.";
+    console.log(result);
+    Logger.log(result);
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Migración aditiva para la versión 3.
+ * Crea las hojas Empresas, Compras y Marketing sin alterar la versión publicada.
+ */
+function prepararActualizacionV3() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const spreadsheet = getSpreadsheet_();
+    ensureSalesSheet_(spreadsheet);
+    ensureListsSheet_(spreadsheet);
+    ensureMovementsSheet_(spreadsheet);
+    ensureBusinessSheets_(spreadsheet);
+    touchUpdated_();
+    const result = "✅ ERP MINI TERMAL v3 preparado. Se conservaron todos los datos anteriores.";
     console.log(result);
     Logger.log(result);
     return result;
@@ -280,6 +340,11 @@ function routeAction_(action, payload) {
     case "registerSettlement": return createMovement_(payload.movement || payload || {});
     case "createCashMovement": return createCashMovement_(payload.movement || {});
     case "createDispatch": return createDispatch_(payload.dispatch || {});
+    case "saveB2B": return saveBusinessRecord_("b2b", payload.record || {}, payload.attachment || null);
+    case "savePurchase": return saveBusinessRecord_("purchase", payload.record || {}, payload.attachment || null);
+    case "saveMarketing": return saveBusinessRecord_("marketing", payload.record || {}, null);
+    case "addBusinessPayment": return addBusinessPayment_(payload.type, payload.id, payload.payment || {});
+    case "archiveBusinessRecord": return archiveBusinessRecord_(payload.type, payload.id);
     default: throw apiError_("UNKNOWN_ACTION", "La acción solicitada no existe.");
   }
 }
@@ -294,6 +359,9 @@ function getAll_() {
   return {
     sales: getSalesRecords_(spreadsheet),
     movements: getMovementRecords_(spreadsheet),
+    b2b: getBusinessRecords_(spreadsheet, "b2b"),
+    purchases: getBusinessRecords_(spreadsheet, "purchase"),
+    marketing: getBusinessRecords_(spreadsheet, "marketing"),
     lists: readLists_(spreadsheet),
     updatedAt: PropertiesService.getScriptProperties().getProperty(TERMAL_CONFIG.LAST_UPDATED_PROPERTY) || new Date().toISOString()
   };
@@ -479,7 +547,7 @@ function createCashMovement_(input) {
       throw apiError_("NOT_FOUND", "No encontramos el pedido relacionado.");
     }
 
-    const previous = cashBalanceForPerson_(sales, movements, persona);
+    const previous = cashBalanceForPerson_(sales, movements, persona, spreadsheet);
     const signedAmount = naturaleza === "TERMAL_TO_PERSON" ? amount : -amount;
     const movement = {
       id: Utilities.getUuid(),
@@ -617,6 +685,307 @@ function getMovementRecords_(spreadsheet) {
     .reverse();
 }
 
+function businessDefinition_(type) {
+  const definitions = {
+    b2b: { sheetName: TERMAL_CONFIG.B2B_SHEET, headers: B2B_HEADERS, prefix: "B2B" },
+    purchase: { sheetName: TERMAL_CONFIG.PURCHASES_SHEET, headers: PURCHASE_HEADERS, prefix: "COMP" },
+    marketing: { sheetName: TERMAL_CONFIG.MARKETING_SHEET, headers: MARKETING_HEADERS, prefix: "MKT" }
+  };
+  const definition = definitions[sanitizeText_(type, 30)];
+  if (!definition) throw apiError_("VALIDATION_ERROR", "El tipo de registro no es válido.");
+  return definition;
+}
+
+function getBusinessRecords_(spreadsheet, type) {
+  const definition = businessDefinition_(type);
+  const sheet = spreadsheet.getSheetByName(definition.sheetName);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, definition.headers.length).getValues()
+    .map(function (row) { return parseBusinessRow_(rowToObject_(row, definition.headers), type); })
+    .filter(function (record) { return Boolean(record.id); })
+    .map(function (record) { return calculateBusinessRecord_(type, record); })
+    .reverse();
+}
+
+function getBusinessRecordsWithRows_(spreadsheet, type) {
+  const definition = businessDefinition_(type);
+  const sheet = spreadsheet.getSheetByName(definition.sheetName);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, definition.headers.length).getValues()
+    .map(function (row, index) {
+      return { row: index + 2, record: calculateBusinessRecord_(type, parseBusinessRow_(rowToObject_(row, definition.headers), type)) };
+    })
+    .filter(function (item) { return Boolean(item.record.id); });
+}
+
+function parseBusinessRow_(record, type) {
+  ["items", "pagos"].forEach(function (key) {
+    if (record[key] === undefined) return;
+    if (Array.isArray(record[key])) return;
+    try { record[key] = record[key] ? JSON.parse(record[key]) : []; }
+    catch (error) { record[key] = []; }
+  });
+  record.fecha = normalizeDate_(record.fecha);
+  if (type === "b2b") {
+    record.fechaEntregaAcordada = normalizeDate_(record.fechaEntregaAcordada);
+    record.fechaEntregaReal = normalizeDate_(record.fechaEntregaReal);
+    record.aplicaIgv = boolean_(record.aplicaIgv);
+    record.facturaEmitida = boolean_(record.facturaEmitida);
+  }
+  if (type === "purchase") record.incluyeIgv = boolean_(record.incluyeIgv);
+  return record;
+}
+
+function saveBusinessRecord_(type, input, attachment) {
+  return withWriteLock_(function () {
+    const spreadsheet = getSpreadsheet_();
+    ensureBusinessSheets_(spreadsheet);
+    const definition = businessDefinition_(type);
+    const sheet = spreadsheet.getSheetByName(definition.sheetName);
+    const records = getBusinessRecordsWithRows_(spreadsheet, type);
+    const existing = input.id ? records.find(function (item) { return String(item.record.id) === String(input.id); }) : null;
+    if (input.id && !existing) throw apiError_("NOT_FOUND", "No encontramos el registro. Sincroniza e inténtalo otra vez.");
+    const now = new Date().toISOString();
+    const protectedFields = existing ? {
+      id: existing.record.id, active: existing.record.active, createdAt: existing.record.createdAt,
+      deletedAt: existing.record.deletedAt, codigo: existing.record.codigo
+    } : {};
+    let candidate = calculateBusinessRecord_(type, Object.assign({}, existing ? existing.record : {}, input, protectedFields));
+    candidate.id = existing ? existing.record.id : Utilities.getUuid();
+    candidate.active = existing ? existing.record.active : true;
+    candidate.version = existing ? toNumber_(existing.record.version) + 1 : 1;
+    candidate.createdAt = existing ? existing.record.createdAt : now;
+    candidate.updatedAt = now;
+    candidate.deletedAt = existing ? existing.record.deletedAt : "";
+    if (!candidate.codigo && type !== "marketing") candidate.codigo = nextBusinessCode_(records.map(function (item) { return item.record; }), definition.prefix);
+    validateBusinessRecord_(type, candidate);
+    if (attachment) candidate = applyBusinessAttachment_(candidate, type, attachment);
+    candidate = calculateBusinessRecord_(type, candidate);
+    const row = objectToRow_(candidate, definition.headers);
+    if (existing) sheet.getRange(existing.row, 1, 1, definition.headers.length).setValues([row]);
+    else sheet.appendRow(row);
+    if (type === "purchase") rememberBusinessCategory_(spreadsheet, "Categoría compra", candidate.categoria);
+    if (type === "marketing") rememberBusinessCategory_(spreadsheet, "Categoría marketing", candidate.categoria);
+    touchUpdated_();
+    return candidate;
+  });
+}
+
+function addBusinessPayment_(type, id, input) {
+  return withWriteLock_(function () {
+    if (type !== "b2b" && type !== "purchase") throw apiError_("VALIDATION_ERROR", "Este registro no admite pagos.");
+    const spreadsheet = getSpreadsheet_();
+    const definition = businessDefinition_(type);
+    const found = getBusinessRecordsWithRows_(spreadsheet, type).find(function (item) { return String(item.record.id) === String(id); });
+    if (!found || found.record.active === false) throw apiError_("NOT_FOUND", "No encontramos el registro.");
+    const payment = sanitizeBusinessPayment_(input, found.record.fecha);
+    if (payment.monto <= 0) throw apiError_("VALIDATION_ERROR", "El monto debe ser mayor que cero.");
+    let candidate = Object.assign({}, found.record, { pagos: (found.record.pagos || []).concat([payment]) });
+    candidate.version = toNumber_(found.record.version) + 1;
+    candidate.updatedAt = new Date().toISOString();
+    candidate = calculateBusinessRecord_(type, candidate);
+    validateBusinessRecord_(type, candidate);
+    spreadsheet.getSheetByName(definition.sheetName).getRange(found.row, 1, 1, definition.headers.length)
+      .setValues([objectToRow_(candidate, definition.headers)]);
+    touchUpdated_();
+    return candidate;
+  });
+}
+
+function archiveBusinessRecord_(type, id) {
+  return withWriteLock_(function () {
+    const spreadsheet = getSpreadsheet_();
+    const definition = businessDefinition_(type);
+    const found = getBusinessRecordsWithRows_(spreadsheet, type).find(function (item) { return String(item.record.id) === String(id); });
+    if (!found) throw apiError_("NOT_FOUND", "No encontramos el registro.");
+    const candidate = Object.assign({}, found.record, {
+      active: false, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      version: toNumber_(found.record.version) + 1
+    });
+    spreadsheet.getSheetByName(definition.sheetName).getRange(found.row, 1, 1, definition.headers.length)
+      .setValues([objectToRow_(candidate, definition.headers)]);
+    touchUpdated_();
+    return candidate;
+  });
+}
+
+function calculateBusinessRecord_(type, raw) {
+  if (type === "b2b") return calculateB2BRecord_(raw);
+  if (type === "purchase") return calculatePurchaseRecord_(raw);
+  return calculateMarketingRecord_(raw);
+}
+
+function calculateB2BRecord_(raw) {
+  const record = Object.assign({}, raw);
+  const items = sanitizeBusinessArray_(raw.items).map(function (item) {
+    const cantidad = Math.max(0, toNumber_(item.cantidad));
+    const precioUnitario = roundMoney_(item.precioUnitario);
+    const costoTermoUnitario = roundMoney_(item.costoTermoUnitario);
+    const costoGrabadoUnitario = roundMoney_(item.costoGrabadoUnitario);
+    const costoCajaUnitario = roundMoney_(item.costoCajaUnitario);
+    const costoUnitario = roundMoney_(costoTermoUnitario + costoGrabadoUnitario + costoCajaUnitario);
+    return {
+      id: sanitizeText_(item.id, 100) || Utilities.getUuid(), descripcion: sanitizeText_(item.descripcion, 1500),
+      cantidad: cantidad, precioUnitario: precioUnitario, costoTermoUnitario: costoTermoUnitario,
+      costoGrabadoUnitario: costoGrabadoUnitario, costoCajaUnitario: costoCajaUnitario,
+      costoUnitario: costoUnitario, venta: roundMoney_(cantidad * precioUnitario),
+      costo: roundMoney_(cantidad * costoUnitario), utilidad: roundMoney_(cantidad * (precioUnitario - costoUnitario))
+    };
+  });
+  const payments = sanitizeBusinessArray_(raw.pagos).map(function (payment) { return sanitizeBusinessPayment_(payment, raw.fecha); }).filter(function (payment) { return payment.monto > 0; });
+  const ventaSinIgv = roundMoney_(items.reduce(function (sum, item) { return sum + item.venta; }, 0));
+  const aplicaIgv = boolean_(raw.aplicaIgv);
+  const igv = aplicaIgv ? roundMoney_(ventaSinIgv * 0.18) : 0;
+  const costoTermos = roundMoney_(items.reduce(function (sum, item) { return sum + item.cantidad * item.costoTermoUnitario; }, 0));
+  const costoGrabados = roundMoney_(items.reduce(function (sum, item) { return sum + item.cantidad * item.costoGrabadoUnitario; }, 0));
+  const costoCajas = roundMoney_(items.reduce(function (sum, item) { return sum + item.cantidad * item.costoCajaUnitario; }, 0));
+  const costoProductos = roundMoney_(costoTermos + costoGrabados + costoCajas);
+  const gastoAdminVentas = roundMoney_(raw.gastoAdminVentas);
+  const gastoLogistico = roundMoney_(raw.gastoLogistico);
+  const otrosCostos = roundMoney_(raw.otrosCostos);
+  const costoTotal = roundMoney_(costoProductos + gastoAdminVentas + gastoLogistico + otrosCostos);
+  const ventaTotal = roundMoney_(ventaSinIgv + igv);
+  const cobrado = roundMoney_(payments.reduce(function (sum, payment) { return sum + payment.monto; }, 0));
+  Object.assign(record, {
+    fecha: normalizeDate_(raw.fecha) || today_(), fechaEntregaAcordada: normalizeDate_(raw.fechaEntregaAcordada),
+    fechaEntregaReal: normalizeDate_(raw.fechaEntregaReal), empresa: sanitizeText_(raw.empresa, 500),
+    ruc: sanitizeText_(raw.ruc, 30), contacto: sanitizeText_(raw.contacto, 500), items: items, pagos: payments,
+    aplicaIgv: aplicaIgv, facturaEmitida: boolean_(raw.facturaEmitida), ventaSinIgv: ventaSinIgv, igv: igv,
+    ventaTotal: ventaTotal, costoTermos: costoTermos, costoGrabados: costoGrabados, costoCajas: costoCajas,
+    costoProductos: costoProductos, gastoAdminVentas: gastoAdminVentas, gastoLogistico: gastoLogistico,
+    otrosCostos: otrosCostos, costoTotal: costoTotal, utilidad: roundMoney_(ventaSinIgv - costoTotal),
+    cantidadTotal: items.reduce(function (sum, item) { return sum + item.cantidad; }, 0), cobrado: cobrado,
+    porCobrar: roundMoney_(Math.max(0, ventaTotal - cobrado)), notas: sanitizeText_(raw.notas, 2000)
+  });
+  record.margen = ventaSinIgv ? roundMoney_(record.utilidad / ventaSinIgv * 100) : 0;
+  return record;
+}
+
+function calculatePurchaseRecord_(raw) {
+  const record = Object.assign({}, raw);
+  const cantidad = Math.max(0, toNumber_(raw.cantidad));
+  const costoUnitario = roundMoney_(raw.costoUnitario);
+  const costoTotal = roundMoney_(cantidad * costoUnitario);
+  const payments = sanitizeBusinessArray_(raw.pagos).map(function (payment) { return sanitizeBusinessPayment_(payment, raw.fecha); }).filter(function (payment) { return payment.monto > 0; });
+  const pagado = roundMoney_(payments.reduce(function (sum, payment) { return sum + payment.monto; }, 0));
+  const incluyeIgv = boolean_(raw.incluyeIgv);
+  const valorSinIgv = incluyeIgv ? roundMoney_(costoTotal / 1.18) : costoTotal;
+  Object.assign(record, {
+    fecha: normalizeDate_(raw.fecha) || today_(), categoria: sanitizeText_(raw.categoria, 200),
+    producto: sanitizeText_(raw.producto, 500), proveedor: sanitizeText_(raw.proveedor, 500),
+    detalle: sanitizeText_(raw.detalle, 1000), cantidad: cantidad, costoUnitario: costoUnitario,
+    costoTotal: costoTotal, pagos: payments, pagado: pagado, porPagar: roundMoney_(Math.max(0, costoTotal - pagado)),
+    incluyeIgv: incluyeIgv, valorSinIgv: valorSinIgv, igv: incluyeIgv ? roundMoney_(costoTotal - valorSinIgv) : 0,
+    notas: sanitizeText_(raw.notas, 2000)
+  });
+  return record;
+}
+
+function calculateMarketingRecord_(raw) {
+  const record = Object.assign({}, raw);
+  const dolares = roundMoney_(raw.dolares);
+  const tipoCambio = toNumber_(raw.tipoCambio);
+  Object.assign(record, {
+    fecha: normalizeDate_(raw.fecha) || today_(), categoria: sanitizeText_(raw.categoria, 200),
+    soles: dolares > 0 ? roundMoney_(dolares * tipoCambio) : roundMoney_(raw.soles), dolares: dolares,
+    tipoCambio: dolares > 0 ? tipoCambio : 0, detalle: sanitizeText_(raw.detalle, 1500),
+    pagadoPor: normalizeBusinessAccount_(raw.pagadoPor)
+  });
+  return record;
+}
+
+function validateBusinessRecord_(type, record) {
+  const errors = [];
+  if (!record.fecha) errors.push("Selecciona la fecha.");
+  if (type === "b2b") {
+    if (!record.empresa) errors.push("Ingresa la empresa.");
+    if (!record.fechaEntregaAcordada) errors.push("Ingresa la entrega acordada.");
+    if (!record.items.length) errors.push("Agrega al menos un producto.");
+    record.items.forEach(function (item) {
+      if (!item.descripcion || item.cantidad <= 0) errors.push("Completa la descripción y cantidad de todos los productos.");
+    });
+    if (record.cobrado > record.ventaTotal + 0.009) errors.push("Los pagos superan la venta total.");
+  }
+  if (type === "purchase") {
+    if (!record.categoria || !record.producto || !record.proveedor) errors.push("Completa categoría, producto y proveedor.");
+    if (record.cantidad <= 0) errors.push("La cantidad debe ser mayor que cero.");
+    if (record.pagado > record.costoTotal + 0.009) errors.push("Los pagos superan el costo total.");
+  }
+  if (type === "marketing") {
+    if (!record.categoria || !record.detalle) errors.push("Completa categoría y detalle.");
+    if (record.dolares > 0 && record.tipoCambio <= 0) errors.push("Ingresa el tipo de cambio del banco.");
+    if (record.soles <= 0) errors.push("El gasto debe ser mayor que cero.");
+  }
+  if (errors.length) throw apiError_("VALIDATION_ERROR", errors.join(" "));
+}
+
+function sanitizeBusinessPayment_(raw, fallbackDate) {
+  return {
+    id: sanitizeText_(raw.id, 100) || Utilities.getUuid(), fecha: normalizeDate_(raw.fecha) || normalizeDate_(fallbackDate) || today_(),
+    monto: roundMoney_(raw.monto), cuenta: normalizeBusinessAccount_(raw.cuenta || raw.pagadoPor),
+    metodo: sanitizeText_(raw.metodo, 200), nota: sanitizeText_(raw.nota, 500)
+  };
+}
+
+function sanitizeBusinessArray_(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; }
+  catch (error) { return []; }
+}
+
+function normalizeBusinessAccount_(value) {
+  const normalized = normalizeText_(value);
+  if (normalized === "gonzalo") return "Gonzalo";
+  if (normalized === "alberto") return "Alberto";
+  return "Termal";
+}
+
+function nextBusinessCode_(records, prefix) {
+  const max = records.reduce(function (value, record) {
+    const match = String(record.codigo || "").match(/(\d+)$/);
+    return Math.max(value, match ? Number(match[1]) : 0);
+  }, 0);
+  return prefix + "-" + ("000" + (max + 1)).slice(-3);
+}
+
+function applyBusinessAttachment_(record, type, attachment) {
+  const name = sanitizeText_(attachment.name, 200);
+  const mimeType = sanitizeText_(attachment.mimeType, 100);
+  const base64 = String(attachment.base64 || "");
+  if (!name || mimeType !== "application/pdf" || !base64) throw apiError_("INVALID_FILE", "Adjunta un PDF válido.");
+  if (base64.length > 12 * 1024 * 1024) throw apiError_("FILE_TOO_LARGE", "El PDF supera el máximo de 8 MB.");
+  let bytes;
+  try { bytes = Utilities.base64Decode(base64); }
+  catch (error) { throw apiError_("INVALID_FILE", "No se pudo leer el PDF."); }
+  const folder = getDocumentsFolder_();
+  const safeName = (type === "b2b" ? "Cotizacion" : "Factura") + " - " + sanitizeText_(record.codigo || record.producto || record.id, 80) + " - " + name;
+  const file = folder.createFile(Utilities.newBlob(bytes, MimeType.PDF, safeName));
+  if (type === "b2b") {
+    record.cotizacionNombre = name; record.cotizacionUrl = file.getUrl(); record.cotizacionFileId = file.getId();
+  } else {
+    record.facturaNombre = name; record.facturaUrl = file.getUrl(); record.facturaFileId = file.getId();
+  }
+  return record;
+}
+
+function getDocumentsFolder_() {
+  const properties = PropertiesService.getScriptProperties();
+  const key = "TERMAL_DOCUMENTS_FOLDER_ID";
+  const existingId = properties.getProperty(key);
+  if (existingId) {
+    try { return DriveApp.getFolderById(existingId); }
+    catch (error) { /* Se crea una carpeta nueva abajo. */ }
+  }
+  const folder = DriveApp.createFolder("ERP MINI TERMAL - Documentos");
+  properties.setProperty(key, folder.getId());
+  return folder;
+}
+
+function boolean_(value) {
+  return value === true || String(value).toLowerCase() === "true" || normalizeText_(value) === "si";
+}
+
 function cashMovementPerson_(value) {
   const normalized = normalizeText_(value);
   if (normalized === "gonzalo") return "Gonzalo";
@@ -645,7 +1014,7 @@ function cashSaleBalance_(sale, person) {
   return 0;
 }
 
-function cashBalanceForPerson_(sales, movements, person) {
+function cashBalanceForPerson_(sales, movements, person, spreadsheet) {
   const normalizedPerson = cashMovementPerson_(person);
   let balance = sales.reduce(function (sum, sale) {
     return sum + cashSaleBalance_(sale, normalizedPerson);
@@ -655,6 +1024,29 @@ function cashBalanceForPerson_(sales, movements, person) {
     if (!isNewCashMovement || cashMovementPerson_(movement.persona) !== normalizedPerson) return;
     balance += cashMovementSignedAmount_(movement);
   });
+  if (spreadsheet) balance += businessCashBalanceForPerson_(spreadsheet, normalizedPerson);
+  return roundMoney_(balance);
+}
+
+function businessCashBalanceForPerson_(spreadsheet, person) {
+  let balance = 0;
+  try {
+    getBusinessRecords_(spreadsheet, "b2b").filter(function (record) { return record.active !== false; }).forEach(function (record) {
+      (record.pagos || []).forEach(function (payment) {
+        if (normalizeBusinessAccount_(payment.cuenta) === person) balance += toNumber_(payment.monto);
+      });
+    });
+    getBusinessRecords_(spreadsheet, "purchase").filter(function (record) { return record.active !== false; }).forEach(function (record) {
+      (record.pagos || []).forEach(function (payment) {
+        if (normalizeBusinessAccount_(payment.cuenta) === person) balance -= toNumber_(payment.monto);
+      });
+    });
+    getBusinessRecords_(spreadsheet, "marketing").filter(function (record) { return record.active !== false; }).forEach(function (record) {
+      if (normalizeBusinessAccount_(record.pagadoPor) === person) balance -= toNumber_(record.soles);
+    });
+  } catch (error) {
+    return 0;
+  }
   return roundMoney_(balance);
 }
 
@@ -1087,7 +1479,9 @@ function ensureListsSheet_(spreadsheet) {
     "Método de pago": DEFAULT_LISTS.metodosPago,
     Problema: DEFAULT_LISTS.problemas,
     "Modalidad logística": DEFAULT_LISTS.modalidadesLogisticas,
-    "Pagador logística": DEFAULT_LISTS.pagadoresLogistica
+    "Pagador logística": DEFAULT_LISTS.pagadoresLogistica,
+    "Categoría compra": DEFAULT_LISTS.categoriasCompras,
+    "Categoría marketing": DEFAULT_LISTS.categoriasMarketing
   };
   Object.keys(categories).forEach(function (category) {
     categories[category].forEach(function (value) { rows.push([category, value, "", "", "", ""]); });
@@ -1178,6 +1572,46 @@ function ensureMovementsSheet_(spreadsheet) {
   sheet.getRange(1, 1, 1, MOVEMENT_HEADERS.length).setFontWeight("bold").setBackground("#344054").setFontColor("#ffffff");
 }
 
+function rememberBusinessCategory_(spreadsheet, category, value) {
+  const cleanValue = sanitizeText_(value, 200);
+  if (!cleanValue) return;
+  const sheet = spreadsheet.getSheetByName(TERMAL_CONFIG.LISTS_SHEET);
+  if (!sheet) return;
+  const values = sheet.getDataRange().getDisplayValues();
+  const exists = values.slice(1).some(function (row) {
+    return normalizeText_(row[0]) === normalizeText_(category) && normalizeText_(row[1]) === normalizeText_(cleanValue);
+  });
+  if (!exists) sheet.appendRow([category, cleanValue, "", "", "", "Agregado desde la aplicación"]);
+}
+
+function ensureBusinessSheets_(spreadsheet) {
+  ensureBusinessSheet_(spreadsheet, TERMAL_CONFIG.B2B_SHEET, B2B_HEADERS);
+  ensureBusinessSheet_(spreadsheet, TERMAL_CONFIG.PURCHASES_SHEET, PURCHASE_HEADERS);
+  ensureBusinessSheet_(spreadsheet, TERMAL_CONFIG.MARKETING_SHEET, MARKETING_HEADERS);
+}
+
+function ensureBusinessSheet_(spreadsheet, name, headers) {
+  let sheet = spreadsheet.getSheetByName(name);
+  if (!sheet) sheet = spreadsheet.insertSheet(name);
+  if (sheet.getMaxColumns() < headers.length) sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+  const expected = headers.map(function (item) { return item[1]; });
+  if (sheet.getLastRow() < 1 || sheet.getLastColumn() < 1) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([expected]);
+  } else {
+    const current = sheet.getRange(1, 1, 1, Math.min(sheet.getLastColumn(), headers.length)).getDisplayValues()[0];
+    const prefixMatches = current.every(function (header, index) { return header === expected[index]; });
+    if (!prefixMatches) {
+      throw apiError_("BUSINESS_SCHEMA_ERROR", "La hoja " + name + " ya existe con columnas diferentes. No se modificó ningún dato.");
+    }
+    if (current.length < expected.length) {
+      sheet.getRange(1, current.length + 1, 1, expected.length - current.length).setValues([expected.slice(current.length)]);
+    }
+  }
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#6e103d").setFontColor("#ffffff");
+  sheet.autoResizeColumns(1, Math.min(headers.length, 12));
+}
+
 function readLists_(spreadsheet) {
   const sheet = spreadsheet.getSheetByName(TERMAL_CONFIG.LISTS_SHEET);
   if (!sheet || sheet.getLastRow() < 2) return DEFAULT_LISTS;
@@ -1189,7 +1623,7 @@ function readLists_(spreadsheet) {
     const result = {
       estados: [], agencias: [], canales: [], origenes: [], modalidadesPago: [],
       cuentas: [], metodosPago: [], problemas: [], modalidadesLogisticas: [],
-      pagadoresLogistica: [], tiposProductos: [], disenos: [],
+      pagadoresLogistica: [], categoriasCompras: [], categoriasMarketing: [], tiposProductos: [], disenos: [],
       coloresPorProducto: {}, productos: []
     };
     const categoryMap = {
@@ -1202,7 +1636,9 @@ function readLists_(spreadsheet) {
       "metodo de pago": "metodosPago",
       problema: "problemas",
       "modalidad logistica": "modalidadesLogisticas",
-      "pagador logistica": "pagadoresLogistica"
+      "pagador logistica": "pagadoresLogistica",
+      "categoria compra": "categoriasCompras",
+      "categoria marketing": "categoriasMarketing"
     };
     values.slice(1).forEach(function (row) {
       const category = normalizeText_(row[categoryIndex]);
@@ -1241,7 +1677,7 @@ function readLists_(spreadsheet) {
     [
       "estados", "agencias", "canales", "origenes", "modalidadesPago", "cuentas",
       "metodosPago", "problemas", "modalidadesLogisticas", "pagadoresLogistica",
-      "tiposProductos", "disenos"
+      "categoriasCompras", "categoriasMarketing", "tiposProductos", "disenos"
     ].forEach(function (key) {
       if (!result[key].length) result[key] = JSON.parse(JSON.stringify(DEFAULT_LISTS[key]));
     });
@@ -1395,6 +1831,7 @@ function objectToRow_(object, definitions) {
     if (definition[0] === "problemasDetalle") return JSON.stringify(sanitizeProblems_(value));
     if (definition[0] === "pagosDetalle") return JSON.stringify(sanitizePayments_(value));
     if (definition[0] === "allocations" && Array.isArray(value)) return JSON.stringify(value);
+    if ((definition[0] === "items" || definition[0] === "pagos") && Array.isArray(value)) return JSON.stringify(value);
     return value;
   });
 }
