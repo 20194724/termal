@@ -43,6 +43,12 @@ assert.equal(b2b.costoTotal, 1464.4);
 assert.equal(b2b.utilidad, 860.6);
 assert.equal(b2b.cobrado, 1000);
 assert.equal(b2b.porCobrar, 1743.5);
+const warningDelivery = B.b2bDeliveryStatus({ fechaEntregaAcordada: "2026-05-21" }, "2026-05-14");
+assert.equal(warningDelivery.key, "warning");
+assert.equal(warningDelivery.label, "Faltan 7 días");
+assert.equal(warningDelivery.days, 7);
+assert.equal(B.b2bDeliveryStatus({ fechaEntregaAcordada: "2026-05-21" }, "2026-05-18").key, "danger");
+assert.equal(B.b2bDeliveryStatus({ fechaEntregaAcordada: "2026-05-21", fechaEntregaReal: "2026-05-20" }, "2026-05-18").key, "delivered");
 
 const purchase = B.calculatePurchase({
   id: "purchase-1", fecha: "2026-05-15", categoria: "Termos", producto: "Termos 890 ml",
@@ -75,6 +81,8 @@ assert.match(html, /data-route="marketing"/);
 assert.ok(!app.includes('value="Ambos"'));
 assert.ok(!app.includes("Parchado"));
 assert.ok(!app.includes('name="cincuentaPorCiento"'));
+assert.match(app, /data-business-mix-chart/);
+assert.match(app, /business-delivery-warning/);
 assert.match(backend, /function prepararActualizacionV3\(\)/);
 assert.match(backend, /case "saveB2B"/);
 assert.match(backend, /case "savePurchase"/);

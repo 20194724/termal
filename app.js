@@ -3,10 +3,12 @@
 
   const U = globalThis.TermalUtils;
   const API = globalThis.TermalAPI;
+  const Charts = globalThis.TermalCharts;
   const B = globalThis.TermalBusiness || {
     BUSINESS_ACCOUNTS: ["Termal", "Gonzalo", "Alberto"],
     DEFAULT_PURCHASE_CATEGORIES: [], DEFAULT_MARKETING_CATEGORIES: [],
     calculateB2B: (value) => value, calculatePurchase: (value) => value, calculateMarketing: (value) => value,
+    b2bDeliveryStatus: () => ({ key: "none", label: "Sin fecha", days: null, date: "", deliveredDate: "" }),
     validateB2B: () => [], validatePurchase: () => [], validateMarketing: () => [],
     cashMovements: () => []
   };
@@ -312,7 +314,12 @@
         <div><p class="eyebrow">NEGOCIO COMPLETO</p><h2>Empresas, compras y marketing</h2></div>
         <span>Información que no aparece en Pedidos</span>
       </div>
-      <div class="analytics-grid">
+      <div class="analytics-grid dashboard-business-grid">
+        <section class="card analytics-card business-mix-card">
+          <div class="analytics-card-head"><div><p class="eyebrow">VENTAS</p><h3>B2C vs B2B</h3></div><span>${U.currency(combinedSales)}</span></div>
+          <canvas data-business-mix-chart role="img" aria-label="Gráfico circular de ventas B2C y B2B"></canvas>
+          <small>Comparación por monto vendido en el periodo.</small>
+        </section>
         <section class="card analytics-card">
           <div class="analytics-card-head"><div><p class="eyebrow">EMPRESAS</p><h3>Venta B2B sin IGV por cliente</h3></div><span>${b2bTotals.projects} ${b2bTotals.projects === 1 ? "trabajo" : "trabajos"}</span></div>
           ${analyticsList(b2bCompanies, { valueKey: "sales", meta: "count", countLabel: "trabajo" })}
@@ -339,6 +346,18 @@
         </div>
       </section>
     `;
+    const businessMixChart = els.mainContent.querySelector("[data-business-mix-chart]");
+    if (businessMixChart && Charts?.donut) {
+      requestAnimationFrame(() => Charts.donut(businessMixChart, [
+        ["B2C", totals.sales],
+        ["B2B", b2bTotals.sales]
+      ], {
+        colors: ["#6e103d", "#f59e0b"],
+        center: combinedSales ? "100%" : "0%",
+        centerLabel: "de ventas",
+        valueFormatter: (value) => U.currency(value)
+      }));
+    }
   }
 
   function renderCash() {
@@ -1822,9 +1841,11 @@
   }
 
   function b2bRow(record) {
-    return `<tr><td><span class="cell-primary">${U.escapeHtml(record.codigo)}</span><span class="cell-secondary">${U.formatDate(record.fecha)}</span></td>
+    const delivery = B.b2bDeliveryStatus(record);
+    const rowClass = delivery.key === "warning" ? "business-delivery-warning" : delivery.key === "danger" ? "business-delivery-danger" : "";
+    return `<tr class="${rowClass}"><td><span class="cell-primary">${U.escapeHtml(record.codigo)}</span><span class="cell-secondary">Inicio · ${U.formatDate(record.fecha)}</span></td>
       <td><span class="cell-primary">${U.escapeHtml(record.empresa)}</span><span class="cell-secondary">${U.escapeHtml(record.ruc || "Sin RUC")}</span></td>
-      <td>${U.formatDate(record.fechaEntregaAcordada)}</td><td>${record.cantidadTotal}</td><td>${U.currency(record.ventaTotal)}</td>
+      <td><span class="cell-primary">${U.formatDate(record.fechaEntregaAcordada)}</span>${b2bDeliveryBadge(delivery)}</td><td>${record.cantidadTotal}</td><td>${U.currency(record.ventaTotal)}</td>
       <td>${U.currency(record.cobrado)}</td><td class="${record.porCobrar ? "money-warning" : ""}">${U.currency(record.porCobrar)}</td>
       <td>${record.facturaEmitida ? `<span class="chip chip-paid">Emitida</span>` : `<span class="chip chip-ready">Pendiente</span>`}</td>
       <td class="${record.utilidad < 0 ? "money-danger" : "money-positive"}">${U.currency(record.utilidad)}</td>
@@ -1832,9 +1853,19 @@
   }
 
   function b2bCard(record) {
-    return `<article class="business-card"><div class="business-card-head"><span>${U.escapeHtml(record.codigo)}</span>${record.facturaEmitida ? `<span class="chip chip-paid">Factura</span>` : `<span class="chip chip-ready">Sin factura</span>`}${businessActions("b2b", record.id, true)}</div>
-      <h3>${U.escapeHtml(record.empresa)}</h3><p>${record.cantidadTotal} unidades · entrega ${U.formatDate(record.fechaEntregaAcordada)}</p>
+    const delivery = B.b2bDeliveryStatus(record);
+    const cardClass = delivery.key === "warning" ? "business-delivery-warning" : delivery.key === "danger" ? "business-delivery-danger" : "";
+    return `<article class="business-card ${cardClass}"><div class="business-card-head"><span>${U.escapeHtml(record.codigo)}</span>${record.facturaEmitida ? `<span class="chip chip-paid">Factura</span>` : `<span class="chip chip-ready">Sin factura</span>`}${businessActions("b2b", record.id, true)}</div>
+      <h3>${U.escapeHtml(record.empresa)}</h3><p>Inicio ${U.formatDate(record.fecha)} · ${record.cantidadTotal} unidades</p>
+      <div class="business-card-delivery"><span><small>Entrega acordada</small><strong>${U.formatDate(record.fechaEntregaAcordada)}</strong></span>${b2bDeliveryBadge(delivery)}</div>
       <div class="business-card-metrics"><span><small>Venta</small><strong>${U.currency(record.ventaTotal)}</strong></span><span><small>Por cobrar</small><strong class="${record.porCobrar ? "money-warning" : ""}">${U.currency(record.porCobrar)}</strong></span><span><small>Utilidad</small><strong class="${record.utilidad < 0 ? "money-danger" : "money-positive"}">${U.currency(record.utilidad)}</strong></span></div></article>`;
+  }
+
+  function b2bDeliveryBadge(delivery) {
+    const title = delivery.deliveredDate
+      ? `Entregado el ${U.formatDate(delivery.deliveredDate)}`
+      : `Entrega acordada: ${U.formatDate(delivery.date)}`;
+    return `<span class="delivery-countdown delivery-countdown-${delivery.key}" title="${U.escapeHtml(title)}">${U.escapeHtml(delivery.label)}</span>`;
   }
 
   function purchaseRow(record) {

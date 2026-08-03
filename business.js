@@ -177,6 +177,29 @@
     };
   }
 
+  function b2bDeliveryStatus(record = {}, referenceDate = U.today()) {
+    const agreedDate = U.dateInput(record.fechaEntregaAcordada);
+    const deliveredDate = U.dateInput(record.fechaEntregaReal);
+    if (deliveredDate) {
+      return { key: "delivered", label: "Entregado", days: null, date: agreedDate, deliveredDate };
+    }
+    if (!agreedDate) {
+      return { key: "none", label: "Sin fecha", days: null, date: "", deliveredDate: "" };
+    }
+    const reference = new Date(`${U.dateInput(referenceDate) || U.today()}T12:00:00-05:00`);
+    const delivery = new Date(`${agreedDate}T12:00:00-05:00`);
+    const days = Math.round((delivery - reference) / 86400000);
+    if (days < 0) {
+      const late = Math.abs(days);
+      return { key: "danger", label: `Atrasado ${late} día${late === 1 ? "" : "s"}`, days, date: agreedDate, deliveredDate: "" };
+    }
+    if (days === 0) return { key: "danger", label: "Entrega hoy", days, date: agreedDate, deliveredDate: "" };
+    const label = days === 1 ? "Falta 1 día" : `Faltan ${days} días`;
+    if (days <= 3) return { key: "danger", label, days, date: agreedDate, deliveredDate: "" };
+    if (days <= 7) return { key: "warning", label, days, date: agreedDate, deliveredDate: "" };
+    return { key: "scheduled", label, days, date: agreedDate, deliveredDate: "" };
+  }
+
   function validateB2B(record) {
     const errors = [];
     if (!record.fecha) errors.push("Selecciona la fecha de inicio.");
@@ -293,6 +316,7 @@
     calculateB2B,
     calculatePurchase,
     calculateMarketing,
+    b2bDeliveryStatus,
     validateB2B,
     validatePurchase,
     validateMarketing,

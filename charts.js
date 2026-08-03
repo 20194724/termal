@@ -91,6 +91,7 @@
     ctx.fillText(options.centerLabel || "pedidos", cx, cy + 17);
     ctx.textAlign = "left";
     const legendX = Math.max(cx + radius + 36, width * 0.55);
+    const valueFormatter = typeof options.valueFormatter === "function" ? options.valueFormatter : (value) => String(value);
     entries.slice(0, 6).forEach(([label, value], index) => {
       const y = 28 + index * 27;
       ctx.fillStyle = colors[index % colors.length];
@@ -100,7 +101,7 @@
       ctx.fillText(shortLabel(label, 18), legendX + 13, y);
       ctx.fillStyle = "#667085";
       ctx.textAlign = "right";
-      ctx.fillText(String(value), width - 12, y);
+      ctx.fillText(valueFormatter(value, label), width - 12, y);
       ctx.textAlign = "left";
     });
   }

@@ -196,6 +196,9 @@ a { color: var(--primary); }
 .analytics-grid {
   display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-bottom: 16px;
 }
+.dashboard-business-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.business-mix-card canvas { display: block; width: 100%; height: 190px; }
+.business-mix-card > small { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; }
 .analytics-card { min-width: 0; padding: 15px; }
 .analytics-card-head {
   display: flex; align-items: end; justify-content: space-between; gap: 10px; margin-bottom: 14px;
@@ -1033,8 +1036,31 @@ button.cash-entry:hover { border-color: #dca9c2; background: #fffafd; }
 .business-table td { padding-left: 8px; padding-right: 8px; }
 .business-table td { vertical-align: middle; }
 .business-table-b2b { min-width: 880px; }
+.business-table-b2b td:nth-child(3) .cell-primary { display: block; }
 .business-table .row-action { width: 27px; height: 28px; }
 .business-table .order-menu-button { width: 30px; height: 29px; }
+.delivery-countdown {
+  display: inline-flex;
+  width: max-content;
+  margin-top: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #475467;
+  background: #f2f4f7;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+.delivery-countdown-warning { color: #92400e; background: #fef3c7; }
+.delivery-countdown-danger { color: #b42318; background: #fee4e2; }
+.delivery-countdown-delivered { color: var(--success); background: var(--success-soft); }
+.business-delivery-warning td { background: #fffbea; }
+.business-delivery-warning:hover td { background: #fff6cf; }
+.business-delivery-warning td:first-child { box-shadow: inset 3px 0 #f59e0b; }
+.business-delivery-danger td { background: #fff2f1; }
+.business-delivery-danger:hover td { background: #ffe8e6; }
+.business-delivery-danger td:first-child { box-shadow: inset 3px 0 #f04438; }
 .business-mobile-view { display: none; }
 .compact-actions { flex-wrap: nowrap; }
 
@@ -1071,6 +1097,12 @@ button.cash-entry:hover { border-color: #dca9c2; background: #fffafd; }
 
 .business-card h3 { margin: 0; font-size: 1rem; }
 .business-card p { margin: 0; color: var(--muted); font-size: .84rem; }
+.business-card.business-delivery-warning { border-color: #f7cf79; background: #fffbea; }
+.business-card.business-delivery-danger { border-color: #fda29b; background: #fff2f1; }
+.business-card-delivery { display: flex; align-items: end; justify-content: space-between; gap: 10px; }
+.business-card-delivery > span:first-child { display: grid; gap: 2px; }
+.business-card-delivery small { color: var(--muted); font-size: .7rem; }
+.business-card-delivery strong { font-size: .84rem; }
 .business-card-head { display: flex; align-items: center; gap: 8px; }
 .business-card-head > span:first-child { font-weight: 800; color: var(--brand); }
 .business-card-head .row-actions { margin-left: auto; }
@@ -1154,6 +1186,7 @@ button.cash-entry:hover { border-color: #dca9c2; background: #fffafd; }
 }
 
 @media (max-width: 820px) {
+  .dashboard-business-grid { grid-template-columns: 1fr; }
   .business-desktop-view { display: none; }
   .business-mobile-view { display: grid; gap: 11px; padding: 0; }
   .business-results-card { border: 0; background: transparent; box-shadow: none; }
