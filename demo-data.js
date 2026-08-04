@@ -122,8 +122,8 @@
 
   const demoB2B = [{
     id: "demo_b2b_1", active: true, codigo: "B2B-001", fecha: ago(30),
-    fechaEntregaAcordada: ago(20), fechaEntregaReal: ago(20), empresa: "SERVICIOS INEFABLES SAC",
-    ruc: "20613516540", contacto: "+51 959 091 356", aplicaIgv: true, facturaEmitida: true,
+    fechaEntregaAcordada: ago(20), fechaEntregaReal: ago(20), empresa: "EMPRESA DEMO SAC",
+    ruc: "20123456789", contacto: "+51 999 999 999", aplicaIgv: true, facturaEmitida: true,
     items: [
       { id: "b2b_i1", descripcion: "Termo 890 ml crema, grabado láser de una cara", cantidad: 9, precioUnitario: 75, costoTermoUnitario: 19, costoGrabadoUnitario: 20, costoCajaUnitario: 2.2 },
       { id: "b2b_i2", descripcion: "Termo 890 ml crema, logo en dos caras", cantidad: 33, precioUnitario: 50, costoTermoUnitario: 19, costoGrabadoUnitario: 8, costoCajaUnitario: 2.2 },
